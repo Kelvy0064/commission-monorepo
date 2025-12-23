@@ -1,0 +1,144 @@
+const pool = require('../config/database');
+
+const comissoesController = {
+  // Listar comissões
+  async index(req, res) {
+    try {
+      const { status, competencia, corretor_id } = req.query;
+      let query = `
+        SELECT c.*,
+               a.numero_apolice,
+               cor.nome as corretor_nome,
+               cl.nome as cliente_nome,
+               s.nome as seguradora_nome
+        FROM comissoes c
+        LEFT JOIN apolices a ON c.apolice_id = a.id
+        LEFT JOIN corretores cor ON c.corretor_id = cor.id
+        LEFT JOIN clientes cl ON a.cliente_id = cl.id
+        LEFT JOIN seguradoras s ON a.seguradora_id = s.id
+        WHERE 1=1
+      `;
+      const params = [];
+      let paramCount = 1;
+
+      if (status) {
+        query += ` AND c.status = $${paramCount}`;
+        params.push(status);
+        paramCount++;
+      }
+
+      if (competencia) {
+        query += ` AND c.competencia = $${paramCount}`;
+        params.push(competencia);
+        paramCount++;
+      }
+
+      if (corretor_id) {
+        query += ` AND c.corretor_id = $${paramCount}`;
+        params.push(corretor_id);
+        paramCount++;
+      }
+
+      query += ' ORDER BY c.data_previsao_recebimento DESC';
+      const result = await pool.query(query, params);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Erro ao listar comissões:', error);
+      res.status(500).json({ error: 'Erro ao listar comissões' });
+    }
+  },
+
+  // Marcar comissão como recebida
+  async marcarRecebida(req, res) {
+    try {
+      const { id } = req.params;
+      const { data_recebimento, valor_real } = req.body;
+
+      const result = await pool.query(
+        `UPDATE comissoes 
+         SET status = 'recebida',
+             data_recebimento_real = $1,
+             valor_comissao_liquido = COALESCE($2, valor_comissao_liquido),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING *`,
+        [data_recebimento || new Date().toISOString().split('T')[0], valor_real, id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Comissão não encontrada' });
+      }
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Erro ao marcar comissão:', error);
+      res.status(500).json({ error: 'Erro ao marcar comissão como recebida' });
+    }
+  },
+
+  // Dashboard - KPIs
+  async dashboard(req, res) {
+    try {
+      const hoje = new Date();
+      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+      console.log(mesAtual);
+      
+      // Total previsto no mês
+      const totalPrevisto = await pool.query(
+        `SELECT COALESCE(SUM(valor_comissao_bruto), 0) as total 
+         FROM comissoes 
+         WHERE competencia = $1`,
+        [mesAtual]
+      );
+
+      console.log(totalPrevisto)
+
+      // Total recebido no mês
+      const totalRecebido = await pool.query(
+        `SELECT COALESCE(SUM(valor_comissao_liquido), 0) as total 
+         FROM comissoes 
+         WHERE competencia = $1 AND status = 'recebida'`,
+        [mesAtual]
+      );
+
+      // Repasses pendentes
+      const repassesPendentes = await pool.query(
+        `SELECT COALESCE(SUM(valor_repasse), 0) as total 
+         FROM repasses 
+         WHERE status = 'pendente'`
+      );
+
+      // Apólices ativas
+      const apolicesAtivas = await pool.query(
+        `SELECT COUNT(*) as total FROM apolices WHERE status = 'ativa'`
+      );
+
+      // Próximas comissões (7 dias)
+      const proximasComissoes = await pool.query(
+        `SELECT c.*, a.numero_apolice, cor.nome as corretor_nome, cl.nome as cliente_nome
+         FROM comissoes c
+         LEFT JOIN apolices a ON c.apolice_id = a.id
+         LEFT JOIN corretores cor ON c.corretor_id = cor.id
+         LEFT JOIN clientes cl ON a.cliente_id = cl.id
+         WHERE c.status = 'prevista' 
+         AND c.data_previsao_recebimento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+         ORDER BY c.data_previsao_recebimento
+         LIMIT 10`
+      );
+
+      res.json({
+        total_previsto: parseFloat(totalPrevisto.rows[0].total),
+        total_recebido: parseFloat(totalRecebido.rows[0].total),
+        repasses_pendentes: parseFloat(repassesPendentes.rows[0].total),
+        apolices_ativas: parseInt(apolicesAtivas.rows[0].total),
+        proximas_comissoes: proximasComissoes.rows
+      });
+    } catch (error) {
+      console.error('Erro ao buscar dashboard:', error);
+      res.status(500).json({ error: 'Erro ao buscar dados do dashboard' });
+    }
+  }
+};
+
+module.exports = comissoesController;

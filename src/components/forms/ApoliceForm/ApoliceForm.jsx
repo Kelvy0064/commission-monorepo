@@ -218,7 +218,6 @@ const ApoliceForm = ({
             type="number"
             step="0.01"
             min="0"
-            max="100"
             value={formData.percentual_comissao}
             onChange={(e) => handleChange('percentual_comissao', e.target.value)}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${

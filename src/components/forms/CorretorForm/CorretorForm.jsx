@@ -46,8 +46,6 @@ const CorretorForm = ({ corretor, onSubmit, onCancel, loading }) => {
 
     if (!validateRequired(formData.percentual_comissao)) {
       newErrors.percentual_comissao = 'Percentual é obrigatório';
-    } else if (formData.percentual_comissao < 0 || formData.percentual_comissao > 100) {
-      newErrors.percentual_comissao = 'Percentual deve estar entre 0 e 100';
     }
 
     setErrors(newErrors);
@@ -162,7 +160,6 @@ const CorretorForm = ({ corretor, onSubmit, onCancel, loading }) => {
           type="number"
           step="0.01"
           min="0"
-          max="100"
           value={formData.percentual_comissao}
           onChange={(e) => handleChange('percentual_comissao', parseFloat(e.target.value))}
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${

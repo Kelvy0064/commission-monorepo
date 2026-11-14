@@ -1,4 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://commission-backend-production-02e1.up.railway.app/api';
 
 export const API_TIMEOUT = 10000;
 

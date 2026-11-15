@@ -1,4 +1,5 @@
 export const STATUS = {
+  LEAD: 'lead',
   ATIVO: 'ativo',
   INATIVO: 'inativo',
   CANCELADO: 'cancelado',

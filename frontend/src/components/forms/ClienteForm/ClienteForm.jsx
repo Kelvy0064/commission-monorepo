@@ -5,6 +5,13 @@ import { STATUS } from '../../../utils/constants';
 import { maskTelefone } from '../../../utils/formatters';
 import { corretoresService } from '../../../api/services/corretores.service';
 
+const TEXT_FIELDS = [
+  'nome', 'cpf_cnpj', 'email', 'endereco',
+  'plano_atual', 'custo_plano_atual', 'investimento_pretendido', 'hospitais_preferidos',
+];
+
+const inputClass = 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500';
+
 const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
   const [corretores, setCorretores] = useState([]);
 
@@ -29,9 +36,12 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
     endereco: '',
     status: STATUS.ATIVO,
     ...cliente,
+    // Campos que podem vir null do banco viram '' para os inputs controlados
+    ...Object.fromEntries(TEXT_FIELDS.map((f) => [f, cliente?.[f] ?? ''])),
     telefone: maskTelefone(cliente?.telefone),
     idades: cliente?.idades || [],
     corretor_id: cliente?.corretor_id ?? '',
+    possui_plano: cliente?.possui_plano == null ? '' : String(cliente.possui_plano),
   });
 
   const [errors, setErrors] = useState({});
@@ -66,10 +76,6 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
       newErrors.nome = 'Nome é obrigatório';
     }
 
-    if (!validateRequired(formData.cpf_cnpj)) {
-      newErrors.cpf_cnpj = 'CPF/CNPJ é obrigatório';
-    }
-
     if (formData.email && !validateEmail(formData.email)) {
       newErrors.email = 'Email inválido';
     }
@@ -84,6 +90,7 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
       onSubmit({
         ...formData,
         corretor_id: formData.corretor_id === '' ? null : Number(formData.corretor_id),
+        possui_plano: formData.possui_plano === '' ? null : formData.possui_plano === 'true',
       });
     }
   };
@@ -105,7 +112,7 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">CPF/CNPJ *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">CPF/CNPJ</label>
         <input
           type="text"
           value={formData.cpf_cnpj}
@@ -229,6 +236,79 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
         />
       </div>
 
+      <fieldset className="border border-gray-200 rounded-lg p-4 space-y-4">
+        <legend className="px-1 text-sm font-semibold text-gray-700">Informações do lead</legend>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Possui plano atualmente?</label>
+            <select
+              value={formData.possui_plano}
+              onChange={(e) => handleChange('possui_plano', e.target.value)}
+              className={inputClass}
+              disabled={loading}
+            >
+              <option value="">Não informado</option>
+              <option value="true">Sim</option>
+              <option value="false">Não</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Plano atual</label>
+            <input
+              type="text"
+              value={formData.plano_atual}
+              onChange={(e) => handleChange('plano_atual', e.target.value)}
+              placeholder="Ex.: Unimed"
+              className={inputClass}
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Custo do plano atual</label>
+            <input
+              type="text"
+              value={formData.custo_plano_atual}
+              onChange={(e) => handleChange('custo_plano_atual', e.target.value)}
+              placeholder="Ex.: Até R$ 1.500"
+              className={inputClass}
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Investimento pretendido</label>
+            <input
+              type="text"
+              value={formData.investimento_pretendido}
+              onChange={(e) => handleChange('investimento_pretendido', e.target.value)}
+              placeholder="Ex.: A partir de R$ 697"
+              className={inputClass}
+              disabled={loading}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Hospitais/laboratórios preferidos</label>
+          <textarea
+            value={formData.hospitais_preferidos}
+            onChange={(e) => handleChange('hospitais_preferidos', e.target.value)}
+            rows="2"
+            className={inputClass}
+            disabled={loading}
+          />
+        </div>
+
+        {cliente?.utm_source && (
+          <p className="text-xs text-gray-500">
+            Origem: {[cliente.utm_source, cliente.utm_campaign, cliente.utm_content].filter(Boolean).join(' · ')}
+          </p>
+        )}
+      </fieldset>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
         <select
@@ -237,6 +317,7 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           disabled={loading}
         >
+          <option value={STATUS.LEAD}>Lead</option>
           <option value={STATUS.ATIVO}>Ativo</option>
           <option value={STATUS.INATIVO}>Inativo</option>
           <option value={STATUS.CANCELADO}>Cancelado</option>

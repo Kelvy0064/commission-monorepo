@@ -22,6 +22,55 @@ const parseCorretorId = (value) => {
 const CORRETOR_INVALIDO = 'Corretor não encontrado';
 const FK_VIOLATION = '23503';
 
+const STATUS_VALIDOS = ['lead', 'ativo', 'inativo', 'cancelado'];
+const TEXT_FIELDS = [
+  'nome', 'cpf_cnpj', 'email', 'telefone', 'endereco',
+  'plano_atual', 'custo_plano_atual', 'investimento_pretendido', 'hospitais_preferidos',
+];
+const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
+const emptyToNull = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text === '' ? null : text;
+};
+
+const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+
+// sim/não/indefinido → true/false/null
+const parsePossuiPlano = (value) => {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return null;
+};
+
+// Valida e normaliza os campos editáveis do cliente.
+// Retorna { fields } (colunas → valores) ou { error }.
+const parseClienteBody = (body) => {
+  const idades = parseIdades(body.idades);
+  if (idades === null) return { error: IDADES_INVALIDAS };
+
+  const corretorId = parseCorretorId(body.corretor_id);
+  if (corretorId === undefined) return { error: CORRETOR_INVALIDO };
+
+  if (body.status && !STATUS_VALIDOS.includes(body.status)) {
+    return { error: `Status inválido. Use: ${STATUS_VALIDOS.join(', ')}` };
+  }
+
+  const fields = {};
+  for (const field of TEXT_FIELDS) fields[field] = emptyToNull(body[field]);
+  if (!fields.nome) return { error: 'Nome é obrigatório' };
+
+  return {
+    fields: {
+      ...fields,
+      idades,
+      corretor_id: corretorId,
+      possui_plano: parsePossuiPlano(body.possui_plano),
+    },
+  };
+};
+
 // Lista clientes com o nome do corretor vinculado
 const SELECT_CLIENTES = `
   SELECT c.*, co.nome AS corretor_nome
@@ -128,21 +177,31 @@ const clientesController = {
   // Criar novo cliente
   async create(req, res) {
     try {
-      const { nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status } = req.body;
-      const idades = parseIdades(req.body.idades);
-      if (idades === null) {
-        return res.status(400).json({ error: IDADES_INVALIDAS });
-      }
-      const corretorId = parseCorretorId(req.body.corretor_id);
-      if (corretorId === undefined) {
-        return res.status(400).json({ error: CORRETOR_INVALIDO });
+      const parsed = parseClienteBody(req.body);
+      if (parsed.error) {
+        return res.status(400).json({ error: parsed.error });
       }
 
+      // data_cadastro pode ser informada (carga retroativa); senão, hoje
+      const dataCadastro = req.body.data_cadastro || null;
+      if (dataCadastro && !isIsoDate(dataCadastro)) {
+        return res.status(400).json({ error: 'data_cadastro deve estar no formato AAAA-MM-DD' });
+      }
+
+      const values = {
+        ...parsed.fields,
+        status: req.body.status || 'ativo',
+        data_nascimento: req.body.data_nascimento || null,
+        ...Object.fromEntries(UTM_FIELDS.map((f) => [f, emptyToNull(req.body[f])])),
+      };
+      const columns = Object.keys(values);
+      const placeholders = columns.map((_, i) => `$${i + 1}`);
+
       const result = await pool.query(
-        `INSERT INTO clientes (nome, cpf_cnpj, email, telefone, data_nascimento, idades, corretor_id, endereco, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO clientes (${columns.join(', ')}, data_cadastro)
+         VALUES (${placeholders.join(', ')}, COALESCE($${columns.length + 1}::date, CURRENT_DATE))
          RETURNING *`,
-        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, corretorId, endereco, status || 'ativo']
+        [...Object.values(values), dataCadastro]
       );
 
       res.status(201).json(result.rows[0]);
@@ -159,25 +218,30 @@ const clientesController = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status } = req.body;
-      const idades = parseIdades(req.body.idades);
-      if (idades === null) {
-        return res.status(400).json({ error: IDADES_INVALIDAS });
-      }
-      const corretorId = parseCorretorId(req.body.corretor_id);
-      if (corretorId === undefined) {
-        return res.status(400).json({ error: CORRETOR_INVALIDO });
+      const parsed = parseClienteBody(req.body);
+      if (parsed.error) {
+        return res.status(400).json({ error: parsed.error });
       }
 
-      // data_nascimento não é mais editada pela tela; mantém o valor salvo se não vier no corpo
+      const params = [];
+      const sets = Object.entries(parsed.fields).map(([column, value]) => {
+        params.push(value);
+        return `${column} = $${params.length}`;
+      });
+
+      // Status, data de nascimento e UTM: mantém o valor salvo se não vierem no corpo
+      for (const column of ['status', 'data_nascimento', ...UTM_FIELDS]) {
+        params.push(req.body[column] || null);
+        sets.push(`${column} = COALESCE($${params.length}, ${column})`);
+      }
+
+      params.push(id);
       const result = await pool.query(
         `UPDATE clientes
-         SET nome = $1, cpf_cnpj = $2, email = $3, telefone = $4,
-             data_nascimento = COALESCE($5, data_nascimento), idades = $6,
-             corretor_id = $7, endereco = $8, status = $9, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $10
+         SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $${params.length}
          RETURNING *`,
-        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, corretorId, endereco, status, id]
+        params
       );
 
       if (result.rows.length === 0) {

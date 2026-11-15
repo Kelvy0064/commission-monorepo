@@ -9,6 +9,11 @@ node_modules/
 # Logs
 *.log
 
+# Exportações com dados pessoais (leads/clientes) — nunca versionar
+*.tsv
+*retroativo*.txt
+backend/imports/
+
 # OS / editors
 .DS_Store
 Thumbs.db

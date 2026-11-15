@@ -59,6 +59,7 @@ const ClientesFilters = ({ filtros, onChange, onClear }) => {
           className={inputClass}
         >
           <option value="">Todos</option>
+          <option value={STATUS.LEAD}>Lead</option>
           <option value={STATUS.ATIVO}>Ativo</option>
           <option value={STATUS.INATIVO}>Inativo</option>
           <option value={STATUS.CANCELADO}>Cancelado</option>

@@ -6,8 +6,13 @@ export const formatCurrency = (value) => {
   }).format(value || 0);
 };
 
+// Datas (colunas DATE) chegam da API como "AAAA-MM-DD" ou "AAAA-MM-DDT00:00:00.000Z".
+// Usa a parte da data como está, sem converter fuso — senão, no Brasil (UTC-3),
+// a meia-noite UTC vira o dia anterior.
 export const formatDate = (date) => {
   if (!date) return '-';
+  const match = String(date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
   return new Intl.DateTimeFormat('pt-BR').format(new Date(date));
 };
 

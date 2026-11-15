@@ -77,6 +77,14 @@ const apolicesController = {
       const competencia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       
       const seguradora = await client.query('SELECT * FROM seguradoras WHERE id = $1', [seguradora_id]);
+      // Sem dia de pagamento/prazo de repasse a data prevista sairia errada: exige o cadastro completo
+      const seg = seguradora.rows[0];
+      if (seg && (seg.dia_pagamento == null || seg.prazo_repasse_dias == null)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `Cadastre o dia de pagamento e o prazo de repasse da seguradora ${seg.nome} antes de criar apólices`,
+        });
+      }
       const dataPrevisao = new Date(hoje);
       dataPrevisao.setDate(seguradora.rows[0].dia_pagamento);
       dataPrevisao.setDate(dataPrevisao.getDate() + seguradora.rows[0].prazo_repasse_dias);

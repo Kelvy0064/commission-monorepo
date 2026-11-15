@@ -67,11 +67,19 @@ cron.schedule('0 0 1 * *', async () => {
     
     // Buscar todas as apólices ativas
     const apolices = await pool.query(`
-      SELECT a.*, s.dia_pagamento, s.prazo_repasse_dias
+      SELECT a.*, s.nome AS seguradora_nome, s.dia_pagamento, s.prazo_repasse_dias
       FROM apolices a
       JOIN seguradoras s ON a.seguradora_id = s.id
       WHERE a.status = 'ativa'
     `);
+
+    // Seguradoras sem dia de pagamento/prazo de repasse gerariam data prevista errada: pula e avisa
+    const incompletas = apolices.rows.filter((a) => a.dia_pagamento == null || a.prazo_repasse_dias == null);
+    if (incompletas.length) {
+      const nomes = [...new Set(incompletas.map((a) => a.seguradora_nome))].join(', ');
+      console.warn(`⚠️  ${incompletas.length} apólice(s) sem comissão gerada — cadastro incompleto: ${nomes}`);
+    }
+    apolices.rows = apolices.rows.filter((a) => a.dia_pagamento != null && a.prazo_repasse_dias != null);
 
     const hoje = new Date();
     const competencia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;

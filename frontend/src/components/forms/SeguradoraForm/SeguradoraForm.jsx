@@ -16,6 +16,8 @@ const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading }) => {
     contato: seguradora?.contato ?? '',
     email: seguradora?.email ?? '',
     observacoes: seguradora?.observacoes ?? '',
+    dia_pagamento: seguradora?.dia_pagamento ?? '',
+    prazo_repasse_dias: seguradora?.prazo_repasse_dias ?? '',
     contrato_assinado: seguradora?.contrato_assinado ?? false,
     contrato_assinado_em: seguradora?.contrato_assinado_em ? String(seguradora.contrato_assinado_em).slice(0, 10) : '',
     regras_pagamento: seguradora?.regras_pagamento ?? '',

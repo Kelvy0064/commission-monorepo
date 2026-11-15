@@ -113,7 +113,15 @@ const ApoliceForm = ({
           <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
           <select
             value={formData.cliente_id}
-            onChange={(e) => handleChange('cliente_id', e.target.value)}
+            onChange={(e) => {
+              const clienteId = e.target.value;
+              handleChange('cliente_id', clienteId);
+              // Sugere o corretor do cliente se ainda não houver corretor escolhido
+              const cliente = clientes.find((c) => String(c.id) === clienteId);
+              if (cliente?.corretor_id && !formData.corretor_responsavel_id) {
+                handleChange('corretor_responsavel_id', String(cliente.corretor_id));
+              }
+            }}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
               errors.cliente_id ? 'border-red-500' : 'border-gray-300'
             }`}

@@ -1,10 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../../common/Button/Button';
 import { validateRequired, validateEmail } from '../../../utils/validators';
 import { STATUS } from '../../../utils/constants';
 import { maskTelefone } from '../../../utils/formatters';
+import { corretoresService } from '../../../api/services/corretores.service';
 
 const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
+  const [corretores, setCorretores] = useState([]);
+
+  // Busca a lista sempre que o formulário abre, para incluir corretores recém-cadastrados
+  useEffect(() => {
+    corretoresService
+      .getAll()
+      .then(setCorretores)
+      .catch(() => setCorretores([]));
+  }, []);
+
+  // Corretores ativos, mais o corretor atual do cliente mesmo que esteja inativo
+  const corretoresDisponiveis = corretores.filter(
+    (c) => c.status === STATUS.ATIVO || c.id === cliente?.corretor_id
+  );
+
   const [formData, setFormData] = useState({
     nome: '',
     cpf_cnpj: '',
@@ -15,6 +31,7 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
     ...cliente,
     telefone: maskTelefone(cliente?.telefone),
     idades: cliente?.idades || [],
+    corretor_id: cliente?.corretor_id ?? '',
   });
 
   const [errors, setErrors] = useState({});
@@ -64,7 +81,10 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit(formData);
+      onSubmit({
+        ...formData,
+        corretor_id: formData.corretor_id === '' ? null : Number(formData.corretor_id),
+      });
     }
   };
 
@@ -125,6 +145,23 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           disabled={loading}
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Corretor</label>
+        <select
+          value={formData.corretor_id}
+          onChange={(e) => handleChange('corretor_id', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          disabled={loading}
+        >
+          <option value="">Sem corretor</option>
+          {corretoresDisponiveis.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome}{c.status !== STATUS.ATIVO ? ' (inativo)' : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

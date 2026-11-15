@@ -12,20 +12,46 @@ const parseIdades = (idades) => {
 
 const IDADES_INVALIDAS = 'Idades devem ser uma lista de números inteiros entre 0 e 130';
 
+// Corretor do cliente é opcional: vazio/ausente → null. Retorna undefined se for inválido.
+const parseCorretorId = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
+
+const CORRETOR_INVALIDO = 'Corretor não encontrado';
+const FK_VIOLATION = '23503';
+
+// Lista clientes com o nome do corretor vinculado
+const SELECT_CLIENTES = `
+  SELECT c.*, co.nome AS corretor_nome
+  FROM clientes c
+  LEFT JOIN corretores co ON co.id = c.corretor_id`;
+
 const clientesController = {
   // Listar todos os clientes
   async index(req, res) {
     try {
-      const { status } = req.query;
-      let query = 'SELECT * FROM clientes';
+      const { status, corretor_id } = req.query;
+      let query = SELECT_CLIENTES;
+      const conditions = [];
       const params = [];
 
       if (status) {
-        query += ' WHERE status = $1';
         params.push(status);
+        conditions.push(`c.status = $${params.length}`);
       }
 
-      query += ' ORDER BY nome';
+      if (corretor_id) {
+        params.push(corretor_id);
+        conditions.push(`c.corretor_id = $${params.length}`);
+      }
+
+      if (conditions.length) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      query += ' ORDER BY c.nome';
       const result = await pool.query(query, params);
       res.json(result.rows);
     } catch (error) {
@@ -38,7 +64,7 @@ const clientesController = {
   async show(req, res) {
     try {
       const { id } = req.params;
-      const result = await pool.query('SELECT * FROM clientes WHERE id = $1', [id]);
+      const result = await pool.query(`${SELECT_CLIENTES} WHERE c.id = $1`, [id]);
       
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Cliente não encontrado' });
@@ -59,16 +85,23 @@ const clientesController = {
       if (idades === null) {
         return res.status(400).json({ error: IDADES_INVALIDAS });
       }
+      const corretorId = parseCorretorId(req.body.corretor_id);
+      if (corretorId === undefined) {
+        return res.status(400).json({ error: CORRETOR_INVALIDO });
+      }
 
       const result = await pool.query(
-        `INSERT INTO clientes (nome, cpf_cnpj, email, telefone, data_nascimento, idades, endereco, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO clientes (nome, cpf_cnpj, email, telefone, data_nascimento, idades, corretor_id, endereco, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING *`,
-        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, endereco, status || 'ativo']
+        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, corretorId, endereco, status || 'ativo']
       );
 
       res.status(201).json(result.rows[0]);
     } catch (error) {
+      if (error.code === FK_VIOLATION) {
+        return res.status(400).json({ error: CORRETOR_INVALIDO });
+      }
       console.error('Erro ao criar cliente:', error);
       res.status(500).json({ error: 'Erro ao criar cliente' });
     }
@@ -83,16 +116,20 @@ const clientesController = {
       if (idades === null) {
         return res.status(400).json({ error: IDADES_INVALIDAS });
       }
+      const corretorId = parseCorretorId(req.body.corretor_id);
+      if (corretorId === undefined) {
+        return res.status(400).json({ error: CORRETOR_INVALIDO });
+      }
 
       // data_nascimento não é mais editada pela tela; mantém o valor salvo se não vier no corpo
       const result = await pool.query(
         `UPDATE clientes
          SET nome = $1, cpf_cnpj = $2, email = $3, telefone = $4,
              data_nascimento = COALESCE($5, data_nascimento), idades = $6,
-             endereco = $7, status = $8, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $9
+             corretor_id = $7, endereco = $8, status = $9, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $10
          RETURNING *`,
-        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, endereco, status, id]
+        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, corretorId, endereco, status, id]
       );
 
       if (result.rows.length === 0) {
@@ -101,6 +138,9 @@ const clientesController = {
 
       res.json(result.rows[0]);
     } catch (error) {
+      if (error.code === FK_VIOLATION) {
+        return res.status(400).json({ error: CORRETOR_INVALIDO });
+      }
       console.error('Erro ao atualizar cliente:', error);
       res.status(500).json({ error: 'Erro ao atualizar cliente' });
     }

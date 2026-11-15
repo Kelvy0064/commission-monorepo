@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Button from '../../../components/common/Button/Button';
 import { validateRequired, validateEmail, validateCPF } from '../../../utils/validators';
 import { TIPO_CORRETOR, STATUS } from '../../../utils/constants';
+import { maskTelefone } from '../../../utils/formatters';
 
 const CorretorForm = ({ corretor, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ const CorretorForm = ({ corretor, onSubmit, onCancel, loading }) => {
     percentual_comissao: '',
     status: STATUS.ATIVO,
     ...corretor,
+    telefone: maskTelefone(corretor?.telefone),
   });
 
   const [errors, setErrors] = useState({});
@@ -125,9 +127,11 @@ const CorretorForm = ({ corretor, onSubmit, onCancel, loading }) => {
           Telefone
         </label>
         <input
-          type="text"
+          type="tel"
+          inputMode="numeric"
+          maxLength={15}
           value={formData.telefone}
-          onChange={(e) => handleChange('telefone', e.target.value)}
+          onChange={(e) => handleChange('telefone', maskTelefone(e.target.value))}
           placeholder="(00) 00000-0000"
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           disabled={loading}

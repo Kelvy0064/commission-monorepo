@@ -2,6 +2,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://commission-
 
 export const API_TIMEOUT = 10000;
 
+export const TOKEN_KEY = 'auth_token';
+
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,

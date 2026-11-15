@@ -10,6 +10,13 @@ const pool = require('./config/database');
 
 const app = express();
 
+// Atrás do proxy do Railway: usa o IP real do cliente (necessário para o limite de requisições)
+app.set('trust proxy', 1);
+
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  JWT_SECRET não configurado — login e rotas autenticadas não vão funcionar');
+}
+
 // Middlewares
 app.use(helmet());
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL, API_TIMEOUT } from './config';
+import { API_BASE_URL, API_TIMEOUT, TOKEN_KEY } from './config';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -12,7 +12,12 @@ const apiClient = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    let token = null;
+    try {
+      token = localStorage.getItem(TOKEN_KEY);
+    } catch {
+      // armazenamento indisponível
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,12 +35,22 @@ apiClient.interceptors.response.use(
   (error) => {
     const { response } = error;
     
-    if (response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+    // Sessão expirada/inválida: volta para o login (exceto na própria tentativa de login)
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (response?.status === 401 && !isLoginRequest) {
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+      } catch {
+        // armazenamento indisponível
+      }
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
-    
-    const errorMessage = response?.data?.message || error.message || 'Erro desconhecido';
+
+    // A API devolve { error: '...' }
+    const errorMessage =
+      response?.data?.error || response?.data?.message || error.message || 'Erro desconhecido';
     console.error('API Error:', errorMessage);
     
     return Promise.reject({

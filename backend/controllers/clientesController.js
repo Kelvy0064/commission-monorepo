@@ -29,6 +29,13 @@ const TEXT_FIELDS = [
 ];
 const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 
+// Campos que a landing page (sem login) pode enviar
+const LEAD_PUBLIC_FIELDS = [
+  'nome', 'cpf_cnpj', 'email', 'telefone', 'data_nascimento', 'endereco', 'idades',
+  'possui_plano', 'plano_atual', 'custo_plano_atual', 'investimento_pretendido', 'hospitais_preferidos',
+  ...UTM_FIELDS,
+];
+
 const emptyToNull = (value) => {
   if (value === undefined || value === null) return null;
   const text = String(value).trim();
@@ -69,6 +76,40 @@ const parseClienteBody = (body) => {
       possui_plano: parsePossuiPlano(body.possui_plano),
     },
   };
+};
+
+// Valida e insere um cliente. Retorna { cliente } ou { error } (erro de validação).
+const insertCliente = async (body) => {
+  const parsed = parseClienteBody(body);
+  if (parsed.error) return { error: parsed.error };
+
+  // data_cadastro pode ser informada (carga retroativa); senão, hoje
+  const dataCadastro = body.data_cadastro || null;
+  if (dataCadastro && !isIsoDate(dataCadastro)) {
+    return { error: 'data_cadastro deve estar no formato AAAA-MM-DD' };
+  }
+
+  const values = {
+    ...parsed.fields,
+    status: body.status || 'ativo',
+    data_nascimento: body.data_nascimento || null,
+    ...Object.fromEntries(UTM_FIELDS.map((f) => [f, emptyToNull(body[f])])),
+  };
+  const columns = Object.keys(values);
+  const placeholders = columns.map((_, i) => `$${i + 1}`);
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO clientes (${columns.join(', ')}, data_cadastro)
+       VALUES (${placeholders.join(', ')}, COALESCE($${columns.length + 1}::date, CURRENT_DATE))
+       RETURNING *`,
+      [...Object.values(values), dataCadastro]
+    );
+    return { cliente: result.rows[0] };
+  } catch (error) {
+    if (error.code === FK_VIOLATION) return { error: CORRETOR_INVALIDO };
+    throw error;
+  }
 };
 
 // Lista clientes com o nome do corretor vinculado
@@ -174,43 +215,36 @@ const clientesController = {
     }
   },
 
-  // Criar novo cliente
+  // Criar novo cliente (usuário logado)
   async create(req, res) {
     try {
-      const parsed = parseClienteBody(req.body);
-      if (parsed.error) {
-        return res.status(400).json({ error: parsed.error });
+      const result = await insertCliente(req.body);
+      if (result.error) {
+        return res.status(400).json({ error: result.error });
       }
-
-      // data_cadastro pode ser informada (carga retroativa); senão, hoje
-      const dataCadastro = req.body.data_cadastro || null;
-      if (dataCadastro && !isIsoDate(dataCadastro)) {
-        return res.status(400).json({ error: 'data_cadastro deve estar no formato AAAA-MM-DD' });
-      }
-
-      const values = {
-        ...parsed.fields,
-        status: req.body.status || 'ativo',
-        data_nascimento: req.body.data_nascimento || null,
-        ...Object.fromEntries(UTM_FIELDS.map((f) => [f, emptyToNull(req.body[f])])),
-      };
-      const columns = Object.keys(values);
-      const placeholders = columns.map((_, i) => `$${i + 1}`);
-
-      const result = await pool.query(
-        `INSERT INTO clientes (${columns.join(', ')}, data_cadastro)
-         VALUES (${placeholders.join(', ')}, COALESCE($${columns.length + 1}::date, CURRENT_DATE))
-         RETURNING *`,
-        [...Object.values(values), dataCadastro]
-      );
-
-      res.status(201).json(result.rows[0]);
+      res.status(201).json(result.cliente);
     } catch (error) {
-      if (error.code === FK_VIOLATION) {
-        return res.status(400).json({ error: CORRETOR_INVALIDO });
-      }
       console.error('Erro ao criar cliente:', error);
       res.status(500).json({ error: 'Erro ao criar cliente' });
+    }
+  },
+
+  // Recebe lead da landing page (rota pública, sem login).
+  // Aceita só os campos do formulário; status é sempre 'lead', sem corretor nem data retroativa,
+  // e a resposta não devolve os dados gravados.
+  async createLead(req, res) {
+    try {
+      const body = Object.fromEntries(
+        LEAD_PUBLIC_FIELDS.filter((f) => req.body[f] !== undefined).map((f) => [f, req.body[f]])
+      );
+      const result = await insertCliente({ ...body, status: 'lead' });
+      if (result.error) {
+        return res.status(400).json({ error: result.error });
+      }
+      res.status(201).json({ id: result.cliente.id, message: 'Lead recebido' });
+    } catch (error) {
+      console.error('Erro ao receber lead:', error);
+      res.status(500).json({ error: 'Erro ao receber lead' });
     }
   },
 

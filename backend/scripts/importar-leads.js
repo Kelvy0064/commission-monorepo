@@ -3,7 +3,7 @@
  * Importa leads exportados do formulário da landing page (arquivo TSV) como clientes.
  *
  * Uso:
- *   node scripts/importar-leads.js <arquivo.tsv> [--api URL] [--executar]
+ *   API_TOKEN=<token de login> node scripts/importar-leads.js <arquivo.tsv> [--api URL] [--executar]
  *
  * Sem --executar roda em modo simulação: valida, unifica e mostra o relatório
  * sem gravar nada. Com --executar, cadastra via API (POST /clientes).
@@ -22,6 +22,8 @@ const arquivo = args.find((a) => !a.startsWith('--') && args[args.indexOf(a) - 1
 const executar = args.includes('--executar');
 const apiIndex = args.indexOf('--api');
 const API_URL = (apiIndex >= 0 ? args[apiIndex + 1] : process.env.API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+// Token de login (a API exige autenticação): copie do navegador ou use POST /auth/login
+const AUTH_HEADERS = process.env.API_TOKEN ? { Authorization: `Bearer ${process.env.API_TOKEN}` } : {};
 
 if (!arquivo) {
   console.error('Uso: node scripts/importar-leads.js <arquivo.tsv> [--api URL] [--executar]');
@@ -191,7 +193,8 @@ const main = async () => {
   // Telefones que já existem no sistema
   let existentes = new Set();
   try {
-    const res = await fetch(`${API_URL}/clientes`);
+    const res = await fetch(`${API_URL}/clientes`, { headers: AUTH_HEADERS });
+    if (res.status === 401) throw new Error('não autorizado — defina API_TOKEN com um token de login válido');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const clientes = await res.json();
     existentes = new Set(clientes.map((c) => telefoneDigitos(c.telefone)).filter(Boolean));
@@ -241,7 +244,7 @@ const main = async () => {
     try {
       const res = await fetch(`${API_URL}/clientes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
         body: JSON.stringify(u.cliente),
       });
       if (!res.ok) {

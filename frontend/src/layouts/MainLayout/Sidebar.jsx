@@ -1,8 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Users, Building2, FileText, DollarSign, ArrowRightLeft } from 'lucide-react';
+import { Home, Users, Building2, FileText, DollarSign, ArrowRightLeft, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
+  const { user, logout } = useAuth();
   const menuItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/corretores', icon: Users, label: 'Corretores' },
@@ -41,6 +43,19 @@ const Sidebar = () => {
           );
         })}
       </nav>
+
+      <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-blue-700">
+        <p className="text-sm font-medium truncate">{user?.nome}</p>
+        <p className="text-xs text-blue-200 truncate mb-3">{user?.email}</p>
+        <button
+          type="button"
+          onClick={logout}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-blue-700 transition"
+        >
+          <LogOut className="w-4 h-4" />
+          Sair
+        </button>
+      </div>
     </div>
   );
 };

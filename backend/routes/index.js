@@ -9,12 +9,27 @@ const comissoesController = require('../controllers/comissoesController');
 const clientesController = require('../controllers/clientesController');
 const seguradorasController = require('../controllers/seguradorasController');
 const repassesController = require('../controllers/repassesController')
-// // ... outros controllers
+const authController = require('../controllers/authController');
+const { loginLimiter, leadLimiter } = require('../middleware/rateLimits');
 
-// // Rotas públicas (sem autenticação para simplificar o MVP)
-// router.get('/health', (req, res) => {
-//   res.json({ status: 'ok', timestamp: new Date() });
-// });
+// ---------- Rotas públicas ----------
+
+router.post('/auth/login', loginLimiter, authController.login);
+
+// Leads da landing page
+router.post('/leads', leadLimiter, clientesController.createLead);
+
+// Compatibilidade: a landing page envia para POST /clientes sem login.
+// Sem token → tratado como lead (mesmas restrições de /leads). Com token → segue para a rota autenticada.
+router.post('/clientes', (req, res, next) => {
+  if (req.headers.authorization) return next();
+  return leadLimiter(req, res, () => clientesController.createLead(req, res));
+});
+
+// ---------- Daqui para baixo, todas as rotas exigem login ----------
+router.use(authMiddleware);
+
+router.get('/auth/me', authController.me);
 
 // // Rotas de Corretores
 router.get('/corretores', corretoresController.index);

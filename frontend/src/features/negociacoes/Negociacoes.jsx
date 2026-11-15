@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, Search, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { CheckSquare, Plus, RefreshCw, Search, Users, X } from 'lucide-react';
 import { useNegociacoes } from './hooks/useNegociacoes';
 import KanbanBoard from './components/KanbanBoard';
 import NegociacaoForm from './components/NegociacaoForm';
-import { situacaoProximaAcao, STATUS_NEGOCIACAO } from './constants';
+import DistribuirModal from './components/DistribuirModal';
+import { ETAPAS, situacaoProximaAcao, STATUS_NEGOCIACAO } from './constants';
+import { negociacoesService } from '../../api/services/negociacoes.service';
 import Modal from '../../components/common/Modal/Modal';
 import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
@@ -23,6 +25,61 @@ const Negociacoes = () => {
   const [modal, setModal] = useState({ open: false, negociacao: null });
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
+
+  // Modo seleção (distribuir em lote)
+  const [selecionando, setSelecionando] = useState(false);
+  const [selecionadas, setSelecionadas] = useState(() => new Set());
+  const [distribuirAberto, setDistribuirAberto] = useState(false);
+
+  // Só conta o que está visível no quadro (filtros podem esconder cartões já marcados).
+  // Ordem do quadro: coluna a coluna, para o rodízio misturar etapas entre os corretores.
+  const idsSelecionados = useMemo(
+    () =>
+      ETAPAS.flatMap((etapa) =>
+        negociacoes.filter((n) => n.etapa === etapa.id && selecionadas.has(n.id)).map((n) => n.id)
+      ),
+    [negociacoes, selecionadas]
+  );
+  const selecionadasVisiveis = useMemo(() => new Set(idsSelecionados), [idsSelecionados]);
+
+  const toggleSelect = useCallback((negociacao) => {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(negociacao.id)) next.delete(negociacao.id);
+      else next.add(negociacao.id);
+      return next;
+    });
+  }, []);
+
+  const selectMany = useCallback((lista, marcar) => {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      lista.forEach((n) => (marcar ? next.add(n.id) : next.delete(n.id)));
+      return next;
+    });
+  }, []);
+
+  const sairSelecao = () => {
+    setSelecionando(false);
+    setSelecionadas(new Set());
+  };
+
+  const handleDistribuir = async (corretorIds) => {
+    setSaving(true);
+    try {
+      const result = await negociacoesService.distribuir(idsSelecionados, corretorIds);
+      setDistribuirAberto(false);
+      sairSelecao();
+      await refresh();
+      showAlert('success', `${result.total} negociação(ões) distribuída(s) entre ${corretorIds.length} corretor(es)`);
+      return true;
+    } catch (err) {
+      showAlert('error', err.message || 'Erro ao distribuir negociações');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     corretoresService.getAll().then(setCorretores).catch(() => setCorretores([]));
@@ -82,15 +139,62 @@ const Negociacoes = () => {
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Negociações</h1>
           <p className="text-gray-600">Funil de vendas para acompanhamento na daily</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" icon={RefreshCw} onClick={refresh} disabled={loading} loading={loading}>
             Atualizar
           </Button>
+          {!selecionando && (
+            <Button variant="secondary" icon={CheckSquare} onClick={() => setSelecionando(true)}>
+              Distribuir
+            </Button>
+          )}
           <Button variant="primary" icon={Plus} onClick={() => openModal()}>
             Nova negociação
           </Button>
         </div>
       </div>
+
+      {selecionando && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 mb-4 px-4 py-3 rounded-xl bg-blue-900 text-white shadow-lg">
+          <span className="text-sm font-medium">
+            {idsSelecionados.length} selecionada(s)
+            <span className="font-normal text-blue-200"> — clique nos cartões para marcar</span>
+          </span>
+          <div className="flex flex-wrap gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => selectMany(negociacoes, true)}
+              className="px-3 py-1.5 rounded-lg text-sm hover:bg-blue-800"
+            >
+              Selecionar todas ({negociacoes.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelecionadas(new Set())}
+              disabled={idsSelecionados.length === 0}
+              className="px-3 py-1.5 rounded-lg text-sm hover:bg-blue-800 disabled:opacity-40"
+            >
+              Limpar
+            </button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Users}
+              onClick={() => setDistribuirAberto(true)}
+              disabled={idsSelecionados.length === 0}
+            >
+              Escolher corretores
+            </Button>
+            <button
+              type="button"
+              onClick={sairSelecao}
+              className="px-3 py-1.5 rounded-lg text-sm hover:bg-blue-800"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {alert && <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} />}
       {error && !alert && <Alert type="error" message={error} onClose={refresh} />}
@@ -172,9 +276,26 @@ const Negociacoes = () => {
         <Spinner />
       ) : (
         <div className={`transition-opacity ${loading ? 'opacity-60' : ''}`}>
-          <KanbanBoard negociacoes={negociacoes} onOpen={openModal} onMove={handleMove} />
+          <KanbanBoard
+            negociacoes={negociacoes}
+            onOpen={openModal}
+            onMove={handleMove}
+            selectionMode={selecionando}
+            selectedIds={selecionadasVisiveis}
+            onToggleSelect={toggleSelect}
+            onSelectMany={selectMany}
+          />
         </div>
       )}
+
+      <DistribuirModal
+        isOpen={distribuirAberto}
+        total={idsSelecionados.length}
+        corretores={corretores}
+        onConfirm={handleDistribuir}
+        onClose={() => setDistribuirAberto(false)}
+        saving={saving}
+      />
 
       <Modal
         isOpen={modal.open}

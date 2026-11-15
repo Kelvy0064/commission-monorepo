@@ -63,6 +63,7 @@ router.delete('/seguradoras/:id', seguradorasController.delete);
 
 router.get('/negociacoes', negociacoesController.index);
 router.post('/negociacoes', negociacoesController.create);
+router.post('/negociacoes/distribuir', negociacoesController.distribuir);
 router.put('/negociacoes/:id', negociacoesController.update);
 router.patch('/negociacoes/:id/etapa', negociacoesController.moverEtapa);
 router.delete('/negociacoes/:id', negociacoesController.delete);

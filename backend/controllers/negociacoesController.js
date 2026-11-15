@@ -195,6 +195,66 @@ const negociacoesController = {
     }
   },
 
+  // POST /negociacoes/distribuir { negociacao_ids: [...], corretor_ids: [...] }
+  // Divide as negociações igualmente entre os corretores (rodízio, na ordem enviada).
+  // O cliente de cada negociação também recebe o corretor, se ainda não tiver um.
+  async distribuir(req, res) {
+    const negociacaoIds = [...new Set((req.body.negociacao_ids || []).map(parseId))];
+    const corretorIds = [...new Set((req.body.corretor_ids || []).map(parseId))];
+
+    if (negociacaoIds.length === 0 || negociacaoIds.some((id) => !id)) {
+      return res.status(400).json({ error: 'Selecione ao menos uma negociação' });
+    }
+    if (corretorIds.length === 0 || corretorIds.some((id) => !id)) {
+      return res.status(400).json({ error: 'Selecione ao menos um corretor' });
+    }
+    if (negociacaoIds.length > 1000) {
+      return res.status(400).json({ error: 'Máximo de 1000 negociações por vez' });
+    }
+
+    const db = await pool.connect();
+    try {
+      const corretores = await db.query('SELECT id FROM corretores WHERE id = ANY($1)', [corretorIds]);
+      if (corretores.rows.length !== corretorIds.length) {
+        return res.status(400).json({ error: 'Corretor não encontrado' });
+      }
+
+      // Pares (negociação, corretor) em rodízio
+      const atribuicoes = negociacaoIds.map((id, i) => [id, corretorIds[i % corretorIds.length]]);
+
+      await db.query('BEGIN');
+      const atualizadas = await db.query(
+        `UPDATE negociacoes n
+         SET corretor_id = a.corretor_id, updated_at = CURRENT_TIMESTAMP
+         FROM unnest($1::int[], $2::int[]) AS a(negociacao_id, corretor_id)
+         WHERE n.id = a.negociacao_id
+         RETURNING n.id, n.cliente_id, n.corretor_id`,
+        [atribuicoes.map(([n]) => n), atribuicoes.map(([, c]) => c)]
+      );
+
+      // Clientes sem corretor recebem o corretor da negociação
+      await db.query(
+        `UPDATE clientes c
+         SET corretor_id = a.corretor_id, updated_at = CURRENT_TIMESTAMP
+         FROM unnest($1::int[], $2::int[]) AS a(cliente_id, corretor_id)
+         WHERE c.id = a.cliente_id AND c.corretor_id IS NULL`,
+        [atualizadas.rows.map((r) => r.cliente_id), atualizadas.rows.map((r) => r.corretor_id)]
+      );
+      await db.query('COMMIT');
+
+      const porCorretor = {};
+      for (const row of atualizadas.rows) porCorretor[row.corretor_id] = (porCorretor[row.corretor_id] || 0) + 1;
+
+      res.json({ total: atualizadas.rows.length, por_corretor: porCorretor });
+    } catch (error) {
+      await db.query('ROLLBACK').catch(() => {});
+      console.error('Erro ao distribuir negociações:', error);
+      res.status(500).json({ error: 'Erro ao distribuir negociações' });
+    } finally {
+      db.release();
+    }
+  },
+
   async delete(req, res) {
     try {
       const result = await pool.query('DELETE FROM negociacoes WHERE id = $1 RETURNING id', [req.params.id]);

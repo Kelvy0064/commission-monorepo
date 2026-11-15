@@ -2,7 +2,15 @@ import React, { useState } from 'react';
 import NegociacaoCard from './NegociacaoCard';
 import { ETAPAS, situacaoProximaAcao } from '../constants';
 
-const KanbanBoard = ({ negociacoes, onOpen, onMove }) => {
+const KanbanBoard = ({
+  negociacoes,
+  onOpen,
+  onMove,
+  selectionMode = false,
+  selectedIds = new Set(),
+  onToggleSelect,
+  onSelectMany,
+}) => {
   const [arrastando, setArrastando] = useState(null);
   const [colunaAlvo, setColunaAlvo] = useState(null);
 
@@ -18,6 +26,7 @@ const KanbanBoard = ({ negociacoes, onOpen, onMove }) => {
         const cards = negociacoes.filter((n) => n.etapa === etapa.id);
         const atrasadas = cards.filter((n) => situacaoProximaAcao(n.proxima_acao_em) === 'atrasada').length;
         const isAlvo = colunaAlvo === etapa.id && arrastando?.etapa !== etapa.id;
+        const colunaToda = cards.length > 0 && cards.every((n) => selectedIds.has(n.id));
 
         return (
           <section
@@ -43,10 +52,20 @@ const KanbanBoard = ({ negociacoes, onOpen, onMove }) => {
               <h2 className="text-sm font-semibold text-gray-700 truncate">
                 {etapa.label} <span className="font-normal text-gray-500">({cards.length})</span>
               </h2>
-              {atrasadas > 0 && (
-                <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium">
-                  {atrasadas} atrasada{atrasadas > 1 ? 's' : ''}
-                </span>
+              {selectionMode && cards.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onSelectMany(cards, !colunaToda)}
+                  className="shrink-0 text-xs font-medium text-blue-700 hover:underline"
+                >
+                  {colunaToda ? 'Desmarcar' : 'Selecionar todas'}
+                </button>
+              ) : (
+                atrasadas > 0 && (
+                  <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium">
+                    {atrasadas} atrasada{atrasadas > 1 ? 's' : ''}
+                  </span>
+                )
               )}
             </header>
 
@@ -62,6 +81,9 @@ const KanbanBoard = ({ negociacoes, onOpen, onMove }) => {
                     setColunaAlvo(null);
                   }}
                   dragging={arrastando?.id === negociacao.id}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(negociacao.id)}
+                  onToggleSelect={onToggleSelect}
                 />
               ))}
               {cards.length === 0 && (

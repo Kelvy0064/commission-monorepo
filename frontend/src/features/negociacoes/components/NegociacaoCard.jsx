@@ -14,34 +14,61 @@ const ACAO_PREFIX = {
   futura: '',
 };
 
-const NegociacaoCard = ({ negociacao, onOpen, onDragStart, onDragEnd, dragging }) => {
+const NegociacaoCard = ({
+  negociacao,
+  onOpen,
+  onDragStart,
+  onDragEnd,
+  dragging,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
+}) => {
   const status = STATUS_NEGOCIACAO[negociacao.status] || STATUS_NEGOCIACAO.em_andamento;
   const situacao = situacaoProximaAcao(negociacao.proxima_acao_em);
   const temAcao = negociacao.proxima_acao || negociacao.proxima_acao_em;
 
+  // No modo seleção, clicar marca/desmarca; fora dele, abre a negociação
+  const activate = () => (selectionMode ? onToggleSelect(negociacao) : onOpen(negociacao));
+
+  const stateClasses = selected
+    ? 'border-blue-500 ring-2 ring-blue-500 bg-blue-50'
+    : 'border-gray-200 bg-white hover:border-blue-300';
+
   return (
     <div
-      role="button"
+      role={selectionMode ? 'checkbox' : 'button'}
+      aria-checked={selectionMode ? selected : undefined}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onOpen(negociacao);
+          activate();
         }
       }}
-      draggable
+      draggable={!selectionMode}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(negociacao.id));
         onDragStart(negociacao);
       }}
       onDragEnd={onDragEnd}
-      onClick={() => onOpen(negociacao)}
-      className={`w-full text-left bg-white rounded-lg border border-gray-200 p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-        dragging ? 'opacity-40' : ''
-      }`}
+      onClick={activate}
+      className={`w-full text-left rounded-lg border p-3 shadow-sm hover:shadow-md transition focus:outline-none focus:ring-2 focus:ring-blue-500 ${stateClasses} ${
+        selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+      } ${dragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1.5">
+        {selectionMode && (
+          <input
+            type="checkbox"
+            checked={selected}
+            readOnly
+            tabIndex={-1}
+            aria-hidden="true"
+            className="w-4 h-4 mr-1 accent-blue-600 pointer-events-none"
+          />
+        )}
         <span className={`w-2 h-2 rounded-sm ${status.dot}`} aria-hidden="true" />
         {status.label}
       </div>

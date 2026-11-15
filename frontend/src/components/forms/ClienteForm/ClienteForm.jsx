@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Button from '../../common/Button/Button';
 import { validateRequired, validateEmail } from '../../../utils/validators';
 import { STATUS } from '../../../utils/constants';
+import { maskTelefone } from '../../../utils/formatters';
 
 const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
     endereco: '',
     status: STATUS.ATIVO,
     ...cliente,
+    telefone: maskTelefone(cliente?.telefone),
   });
 
   const [errors, setErrors] = useState({});
@@ -98,9 +100,11 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
         <input
-          type="text"
+          type="tel"
+          inputMode="numeric"
+          maxLength={15}
           value={formData.telefone}
-          onChange={(e) => handleChange('telefone', e.target.value)}
+          onChange={(e) => handleChange('telefone', maskTelefone(e.target.value))}
           placeholder="(00) 00000-0000"
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           disabled={loading}

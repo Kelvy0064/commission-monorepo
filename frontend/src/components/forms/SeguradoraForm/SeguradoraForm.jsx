@@ -12,6 +12,14 @@ const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading }) => {
     prazo_repasse_dias: '',
     observacoes: '',
     ...seguradora,
+    // Campos que podem vir null do banco viram '' para os inputs controlados
+    contato: seguradora?.contato ?? '',
+    email: seguradora?.email ?? '',
+    observacoes: seguradora?.observacoes ?? '',
+    contrato_assinado: seguradora?.contrato_assinado ?? false,
+    contrato_assinado_em: seguradora?.contrato_assinado_em ? String(seguradora.contrato_assinado_em).slice(0, 10) : '',
+    regras_pagamento: seguradora?.regras_pagamento ?? '',
+    pos_venda: seguradora?.pos_venda ?? '',
   });
 
   const [errors, setErrors] = useState({});
@@ -142,6 +150,63 @@ const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading }) => {
           {errors.prazo_repasse_dias && <p className="mt-1 text-sm text-red-600">{errors.prazo_repasse_dias}</p>}
         </div>
       </div>
+
+      <fieldset className="border border-gray-200 rounded-lg p-4 space-y-4">
+        <legend className="px-1 text-sm font-semibold text-gray-700">Contrato e pós-venda</legend>
+
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={formData.contrato_assinado}
+              onChange={(e) => handleChange('contrato_assinado', e.target.checked)}
+              className="w-4 h-4 accent-blue-600"
+              disabled={loading}
+            />
+            Contrato assinado
+          </label>
+          {formData.contrato_assinado && (
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              em
+              <input
+                type="date"
+                value={formData.contrato_assinado_em}
+                onChange={(e) => handleChange('contrato_assinado_em', e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
+              />
+            </label>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Regras de pagamento</label>
+          <textarea
+            value={formData.regras_pagamento}
+            onChange={(e) => handleChange('regras_pagamento', e.target.value)}
+            rows="3"
+            placeholder="Ex.: paga comissão no dia 20 via assessoria X; NF até o dia 10; só após a 1ª mensalidade compensada"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            disabled={loading}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Pós-venda e acompanhamento</label>
+          <textarea
+            value={formData.pos_venda}
+            onChange={(e) => handleChange('pos_venda', e.target.value)}
+            rows="3"
+            placeholder="Ex.: gerente responsável, prazo de implantação, envio do boleto da 1ª parcela, canal para dúvidas"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            disabled={loading}
+          />
+        </div>
+        <p className="text-xs text-gray-500">
+          Percentuais por parcela, vitalício e estorno ficam em <strong>Tabelas de comissão</strong>, na lista de
+          seguradoras.
+        </p>
+      </fieldset>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>

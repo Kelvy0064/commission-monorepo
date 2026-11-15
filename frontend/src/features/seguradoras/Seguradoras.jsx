@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useSeguradoras } from './hooks/useSeguradoras';
 import SeguradorasTable from './components/SeguradorasTable';
+import TabelasComissaoModal from './components/TabelasComissaoModal';
 import SeguradoraForm from '../../components/forms/SeguradoraForm/SeguradoraForm';
 import Modal from '../../components/common/Modal/Modal';
 import Button from '../../components/common/Button/Button';
@@ -13,6 +14,7 @@ const Seguradoras = () => {
   const { seguradoras, loading, error, createSeguradora, updateSeguradora, deleteSeguradora, refresh } = useSeguradoras();
   const { isOpen, modalData, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState(null);
+  const [comissoesDe, setComissoesDe] = useState(null);
 
   const handleSubmit = async (formData) => {
     const result = modalData
@@ -70,8 +72,18 @@ const Seguradoras = () => {
       </Card>
 
       <Card>
-        <SeguradorasTable seguradoras={seguradoras} loading={loading} onEdit={openModal} onDelete={handleDelete} />
+        <SeguradorasTable
+          seguradoras={seguradoras}
+          loading={loading}
+          onEdit={openModal}
+          onDelete={handleDelete}
+          onComissoes={setComissoesDe}
+        />
       </Card>
+
+      {comissoesDe && (
+        <TabelasComissaoModal seguradora={comissoesDe} onClose={() => setComissoesDe(null)} onChanged={refresh} />
+      )}
 
       <Modal isOpen={isOpen} onClose={closeModal} title={modalData ? 'Editar Seguradora' : 'Nova Seguradora'}>
         <SeguradoraForm seguradora={modalData} onSubmit={handleSubmit} onCancel={closeModal} loading={loading} />

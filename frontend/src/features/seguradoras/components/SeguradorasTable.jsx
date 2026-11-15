@@ -1,8 +1,8 @@
 import React from 'react';
-import { formatCNPJ } from '../../../utils/formatters';
+import { formatCNPJ, formatDate } from '../../../utils/formatters';
 import Spinner from '../../../components/common/Spinner/Spinner';
 
-const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete }) => {
+const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete, onComissoes }) => {
   if (loading) return <Spinner />;
 
   if (seguradoras.length === 0) {
@@ -23,6 +23,8 @@ const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete }) => {
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contato</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Dia Pagamento</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prazo Repasse</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contrato</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comissões</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ações</th>
           </tr>
         </thead>
@@ -34,6 +36,25 @@ const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete }) => {
               <td className="px-4 py-3 text-sm text-gray-600">{seguradora.contato || '-'}</td>
               <td className="px-4 py-3 text-sm text-gray-800">Dia {seguradora.dia_pagamento}</td>
               <td className="px-4 py-3 text-sm text-gray-800">{seguradora.prazo_repasse_dias} dias</td>
+              <td className="px-4 py-3 text-sm whitespace-nowrap">
+                {seguradora.contrato_assinado ? (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    Assinado{seguradora.contrato_assinado_em ? ` em ${formatDate(seguradora.contrato_assinado_em)}` : ''}
+                  </span>
+                ) : (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pendente</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm">
+                <button
+                  onClick={() => onComissoes(seguradora)}
+                  className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+                >
+                  {seguradora.tabelas_ativas
+                    ? `${seguradora.tabelas_ativas} tabela${seguradora.tabelas_ativas > 1 ? 's' : ''}`
+                    : 'Cadastrar'}
+                </button>
+              </td>
               <td className="px-4 py-3 text-sm">
                 <button
                   onClick={() => onEdit(seguradora)}

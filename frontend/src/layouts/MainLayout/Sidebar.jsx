@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Users, Building2, FileText, DollarSign, ArrowRightLeft, LogOut } from 'lucide-react';
+import { Home, Users, Building2, FileText, DollarSign, ArrowRightLeft, LogOut, KanbanSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
@@ -10,6 +10,7 @@ const Sidebar = () => {
     { path: '/corretores', icon: Users, label: 'Corretores' },
     { path: '/seguradoras', icon: Building2, label: 'Seguradoras' },
     { path: '/clientes', icon: Users, label: 'Clientes' },
+    { path: '/negociacoes', icon: KanbanSquare, label: 'Negociações' },
     { path: '/apolices', icon: FileText, label: 'Apólices' },
     { path: '/comissoes', icon: DollarSign, label: 'Comissões' },
     { path: '/repasses', icon: ArrowRightLeft, label: 'Repasses' },

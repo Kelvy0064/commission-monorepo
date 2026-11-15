@@ -10,6 +10,7 @@ const clientesController = require('../controllers/clientesController');
 const seguradorasController = require('../controllers/seguradorasController');
 const repassesController = require('../controllers/repassesController')
 const authController = require('../controllers/authController');
+const negociacoesController = require('../controllers/negociacoesController');
 const { loginLimiter, leadLimiter } = require('../middleware/rateLimits');
 
 // ---------- Rotas públicas ----------
@@ -59,6 +60,12 @@ router.get('/seguradoras', seguradorasController.index);
 router.post('/seguradoras', seguradorasController.create);
 router.put('/seguradoras/:id', seguradorasController.update);
 router.delete('/seguradoras/:id', seguradorasController.delete);
+
+router.get('/negociacoes', negociacoesController.index);
+router.post('/negociacoes', negociacoesController.create);
+router.put('/negociacoes/:id', negociacoesController.update);
+router.patch('/negociacoes/:id/etapa', negociacoesController.moverEtapa);
+router.delete('/negociacoes/:id', negociacoesController.delete);
 
 router.get('/repasses', repassesController.index);
 router.post('/repasses/gerar', repassesController.gerarRepasses);

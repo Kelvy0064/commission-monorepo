@@ -7,6 +7,7 @@ const Dashboard = lazy(() => import('../features/dashboard/Dashboard'));
 const Corretores = lazy(() => import('../features/corretores/Corretores'));
 const Seguradoras = lazy(() => import('../features/seguradoras/Seguradoras'));
 const Clientes = lazy(() => import('../features/clientes/Clientes'));
+const Negociacoes = lazy(() => import('../features/negociacoes/Negociacoes'));
 const Apolices = lazy(() => import('../features/apolices/Apolices'));
 const Comissoes = lazy(() => import('../features/comissoes/Comissoes'));
 const Repasses = lazy(() => import('../features/repasses/Repasses'));
@@ -20,6 +21,7 @@ const AppRoutes = () => {
         <Route path="/corretores" element={<Corretores />} />
         <Route path="/seguradoras" element={<Seguradoras />} />
         <Route path="/clientes" element={<Clientes />} />
+        <Route path="/negociacoes" element={<Negociacoes />} />
         <Route path="/apolices" element={<Apolices />} />
         <Route path="/comissoes" element={<Comissoes />} />
         <Route path="/repasses" element={<Repasses />} />

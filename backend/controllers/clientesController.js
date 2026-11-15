@@ -79,7 +79,8 @@ const parseClienteBody = (body) => {
 };
 
 // Valida e insere um cliente. Retorna { cliente } ou { error } (erro de validação).
-const insertCliente = async (body) => {
+// `db` permite rodar dentro de uma transação (client do pool); padrão: pool.
+const insertCliente = async (body, db = pool) => {
   const parsed = parseClienteBody(body);
   if (parsed.error) return { error: parsed.error };
 
@@ -99,7 +100,7 @@ const insertCliente = async (body) => {
   const placeholders = columns.map((_, i) => `$${i + 1}`);
 
   try {
-    const result = await pool.query(
+    const result = await db.query(
       `INSERT INTO clientes (${columns.join(', ')}, data_cadastro)
        VALUES (${placeholders.join(', ')}, COALESCE($${columns.length + 1}::date, CURRENT_DATE))
        RETURNING *`,
@@ -232,19 +233,33 @@ const clientesController = {
   // Recebe lead da landing page (rota pública, sem login).
   // Aceita só os campos do formulário; status é sempre 'lead', sem corretor nem data retroativa,
   // e a resposta não devolve os dados gravados.
+  // O lead já entra no quadro de negociações, em "Sem contato" (cliente e negociação na mesma transação).
   async createLead(req, res) {
+    const db = await pool.connect();
     try {
       const body = Object.fromEntries(
         LEAD_PUBLIC_FIELDS.filter((f) => req.body[f] !== undefined).map((f) => [f, req.body[f]])
       );
-      const result = await insertCliente({ ...body, status: 'lead' });
+
+      await db.query('BEGIN');
+      const result = await insertCliente({ ...body, status: 'lead' }, db);
       if (result.error) {
+        await db.query('ROLLBACK');
         return res.status(400).json({ error: result.error });
       }
+      await db.query(
+        `INSERT INTO negociacoes (cliente_id, etapa, status) VALUES ($1, 'sem_contato', 'em_andamento')`,
+        [result.cliente.id]
+      );
+      await db.query('COMMIT');
+
       res.status(201).json({ id: result.cliente.id, message: 'Lead recebido' });
     } catch (error) {
+      await db.query('ROLLBACK').catch(() => {});
       console.error('Erro ao receber lead:', error);
       res.status(500).json({ error: 'Erro ao receber lead' });
+    } finally {
+      db.release();
     }
   },
 

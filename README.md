@@ -27,7 +27,7 @@ npm run dev
 ## Produção
 
 - **API + banco:** Railway (serviço com Root Directory `/backend`)
-- **Frontend:** http://localhost:5173/ (Root Directory `/frontend`)
+- **Frontend:** Railway (serviço com Root Directory `/frontend`). O Railway roda `npm run build` e depois `npm start`, que serve o `dist/` com `serve` em modo SPA. A variável `VITE_API_URL` precisa estar definida no serviço **antes** do build, porque é embutida no bundle. A URL do frontend deve constar no `CORS_ORIGIN` do backend.
 
 - **Lading Page** https://nevittaseguros.com
 (envia dados para o backend via API)

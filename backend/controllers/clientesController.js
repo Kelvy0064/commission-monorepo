@@ -29,11 +29,13 @@ const SELECT_CLIENTES = `
   LEFT JOIN corretores co ON co.id = c.corretor_id`;
 
 const clientesController = {
-  // Listar todos os clientes
+  // Listar clientes.
+  // Filtros: busca (nome, CPF/CNPJ, email, telefone), status, corretor_id (id ou "sem").
+  // Sem `page`, devolve o array completo (usado nos selects de outras telas).
+  // Com `page`, devolve { data, total, page, pageSize, totalPages }.
   async index(req, res) {
     try {
-      const { status, corretor_id } = req.query;
-      let query = SELECT_CLIENTES;
+      const { status, corretor_id, busca } = req.query;
       const conditions = [];
       const params = [];
 
@@ -42,18 +44,64 @@ const clientesController = {
         conditions.push(`c.status = $${params.length}`);
       }
 
-      if (corretor_id) {
-        params.push(corretor_id);
+      if (corretor_id === 'sem') {
+        conditions.push('c.corretor_id IS NULL');
+      } else if (corretor_id) {
+        const corretorId = parseCorretorId(corretor_id);
+        if (!corretorId) {
+          return res.status(400).json({ error: CORRETOR_INVALIDO });
+        }
+        params.push(corretorId);
         conditions.push(`c.corretor_id = $${params.length}`);
       }
 
-      if (conditions.length) {
-        query += ` WHERE ${conditions.join(' AND ')}`;
+      const termo = (busca || '').trim();
+      if (termo) {
+        const like = `%${termo.replace(/[\\%_]/g, '\\$&')}%`;
+        params.push(like);
+        const textMatch = `(c.nome ILIKE $${params.length} OR c.email ILIKE $${params.length})`;
+
+        // Termo numérico (ex.: "123.456", "(11) 9876"): compara também os dígitos de
+        // CPF/CNPJ e telefone, com ou sem máscara. Termos com letras buscam só nome/email.
+        const digits = termo.replace(/\D/g, '');
+        if (digits && /^[\d\s.\-/()+]+$/.test(termo)) {
+          params.push(`%${digits}%`);
+          const n = params.length;
+          conditions.push(`(${textMatch}
+            OR regexp_replace(c.cpf_cnpj, '\\D', '', 'g') LIKE $${n}
+            OR regexp_replace(COALESCE(c.telefone, ''), '\\D', '', 'g') LIKE $${n})`);
+        } else {
+          conditions.push(textMatch);
+        }
       }
 
-      query += ' ORDER BY c.nome';
-      const result = await pool.query(query, params);
-      res.json(result.rows);
+      const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+
+      if (req.query.page === undefined) {
+        const result = await pool.query(`${SELECT_CLIENTES}${where} ORDER BY c.nome`, params);
+        return res.json(result.rows);
+      }
+
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
+
+      const [countResult, dataResult] = await Promise.all([
+        pool.query(`SELECT COUNT(*)::int AS total FROM clientes c${where}`, params),
+        pool.query(
+          `${SELECT_CLIENTES}${where} ORDER BY c.nome, c.id
+           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+          [...params, pageSize, (page - 1) * pageSize]
+        ),
+      ]);
+
+      const total = countResult.rows[0].total;
+      res.json({
+        data: dataResult.rows,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      });
     } catch (error) {
       console.error('Erro ao listar clientes:', error);
       res.status(500).json({ error: 'Erro ao listar clientes' });

@@ -1,13 +1,14 @@
 import React from 'react';
 import Spinner from '../../../components/common/Spinner/Spinner';
 
-const ClientesTable = ({ clientes, loading, onEdit, onDelete }) => {
-  if (loading) return <Spinner />;
+const ClientesTable = ({ clientes, loading, emptyMessage = 'Nenhum cliente cadastrado', onEdit, onDelete }) => {
+  // Spinner só no primeiro carregamento; ao paginar/filtrar mantém a tabela visível
+  if (loading && clientes.length === 0) return <Spinner />;
 
   if (clientes.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Nenhum cliente cadastrado</p>
+        <p className="text-gray-500">{emptyMessage}</p>
       </div>
     );
   }
@@ -27,7 +28,7 @@ const ClientesTable = ({ clientes, loading, onEdit, onDelete }) => {
   };
 
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-x-auto transition-opacity ${loading ? 'opacity-50' : ''}`}>
       <table className="w-full">
         <thead className="bg-gray-50">
           <tr>

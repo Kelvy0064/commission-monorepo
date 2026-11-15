@@ -2,15 +2,35 @@ import React, { useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useClientes } from './hooks/useClientes';
 import ClientesTable from './components/ClientesTable';
+import ClientesFilters from './components/ClientesFilters';
 import ClienteForm from '../../components/forms/ClienteForm/ClienteForm';
 import Modal from '../../components/common/Modal/Modal';
+import Pagination from '../../components/common/Pagination/Pagination';
 import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
 import Card from '../../components/common/Card/Card';
 import { useModal } from '../../hooks/useModal';
 
 const Clientes = () => {
-  const { clientes, loading, error, createCliente, updateCliente, deleteCliente, refresh } = useClientes();
+  const {
+    clientes,
+    loading,
+    error,
+    filtros,
+    updateFiltro,
+    limparFiltros,
+    page,
+    pageSize,
+    total,
+    totalPages,
+    setPage,
+    setPageSize,
+    createCliente,
+    updateCliente,
+    deleteCliente,
+    refresh,
+  } = useClientes();
+  const temFiltro = Object.values(filtros).some(Boolean);
   const { isOpen, modalData, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState(null);
 
@@ -64,13 +84,29 @@ const Clientes = () => {
           </>
         }
       >
-        <div className="text-sm text-gray-600">
-          Total: <span className="font-semibold">{clientes.length}</span> cliente(s)
+        <ClientesFilters filtros={filtros} onChange={updateFiltro} onClear={limparFiltros} />
+        <div className="text-sm text-gray-600 mt-3">
+          {temFiltro ? 'Encontrados' : 'Total'}: <span className="font-semibold">{total}</span> cliente(s)
         </div>
       </Card>
 
       <Card>
-        <ClientesTable clientes={clientes} loading={loading} onEdit={openModal} onDelete={handleDelete} />
+        <ClientesTable
+          clientes={clientes}
+          loading={loading}
+          emptyMessage={temFiltro ? 'Nenhum cliente encontrado com esses filtros' : 'Nenhum cliente cadastrado'}
+          onEdit={openModal}
+          onDelete={handleDelete}
+        />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          disabled={loading}
+        />
       </Card>
 
       <Modal isOpen={isOpen} onClose={closeModal} title={modalData ? 'Editar Cliente' : 'Novo Cliente'}>

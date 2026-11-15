@@ -10,14 +10,30 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
     cpf_cnpj: '',
     email: '',
     telefone: '',
-    data_nascimento: '',
     endereco: '',
     status: STATUS.ATIVO,
     ...cliente,
     telefone: maskTelefone(cliente?.telefone),
+    idades: cliente?.idades || [],
   });
 
   const [errors, setErrors] = useState({});
+  const [idadeInput, setIdadeInput] = useState('');
+
+  const addIdade = () => {
+    if (idadeInput === '') return;
+    const idade = Number(idadeInput);
+    if (!Number.isInteger(idade) || idade < 0 || idade > 130) {
+      setErrors(prev => ({ ...prev, idades: 'Informe uma idade entre 0 e 130' }));
+      return;
+    }
+    handleChange('idades', [...formData.idades, idade]);
+    setIdadeInput('');
+  };
+
+  const removeIdade = (index) => {
+    handleChange('idades', formData.idades.filter((_, i) => i !== index));
+  };
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -112,14 +128,57 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
-        <input
-          type="date"
-          value={formData.data_nascimento}
-          onChange={(e) => handleChange('data_nascimento', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          disabled={loading}
-        />
+        <label className="block text-sm font-medium text-gray-700 mb-1">Idades do contrato</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            max="130"
+            step="1"
+            value={idadeInput}
+            onChange={(e) => {
+              setIdadeInput(e.target.value);
+              if (errors.idades) setErrors(prev => ({ ...prev, idades: null }));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addIdade();
+              }
+            }}
+            placeholder="Digite a idade e pressione Enter"
+            className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+              errors.idades ? 'border-red-500' : 'border-gray-300'
+            }`}
+            disabled={loading}
+          />
+          <Button type="button" variant="secondary" onClick={addIdade} disabled={loading || idadeInput === ''}>
+            Adicionar
+          </Button>
+        </div>
+        {errors.idades && <p className="mt-1 text-sm text-red-600">{errors.idades}</p>}
+        {formData.idades.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {formData.idades.map((idade, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm"
+              >
+                {idade} {idade === 1 ? 'ano' : 'anos'}
+                <button
+                  type="button"
+                  onClick={() => removeIdade(index)}
+                  className="ml-1 text-blue-500 hover:text-blue-800 font-bold leading-none"
+                  aria-label={`Remover idade ${idade}`}
+                  disabled={loading}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>

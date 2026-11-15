@@ -35,6 +35,7 @@ const ClientesTable = ({ clientes, loading, onEdit, onDelete }) => {
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">CPF/CNPJ</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Telefone</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Idades</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ações</th>
           </tr>
@@ -46,6 +47,9 @@ const ClientesTable = ({ clientes, loading, onEdit, onDelete }) => {
               <td className="px-4 py-3 text-sm text-gray-600">{cliente.cpf_cnpj}</td>
               <td className="px-4 py-3 text-sm text-gray-600">{cliente.email || '-'}</td>
               <td className="px-4 py-3 text-sm text-gray-600">{cliente.telefone || '-'}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                {cliente.idades?.length ? cliente.idades.join(', ') : '-'}
+              </td>
               <td className="px-4 py-3 text-sm">{getStatusBadge(cliente.status)}</td>
               <td className="px-4 py-3 text-sm">
                 <button

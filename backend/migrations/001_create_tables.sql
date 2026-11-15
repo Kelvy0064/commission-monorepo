@@ -121,8 +121,8 @@ CREATE TABLE IF NOT EXISTS pagamentos_seguradora (
 );
 
 -- Índices para performance
-CREATE INDEX idx_comissoes_status ON comissoes(status);
-CREATE INDEX idx_comissoes_competencia ON comissoes(competencia);
-CREATE INDEX idx_apolices_status ON apolices(status);
-CREATE INDEX idx_repasses_status ON repasses(status);
-CREATE INDEX idx_corretor_status ON corretores(status);
+CREATE INDEX IF NOT EXISTS idx_comissoes_status ON comissoes(status);
+CREATE INDEX IF NOT EXISTS idx_comissoes_competencia ON comissoes(competencia);
+CREATE INDEX IF NOT EXISTS idx_apolices_status ON apolices(status);
+CREATE INDEX IF NOT EXISTS idx_repasses_status ON repasses(status);
+CREATE INDEX IF NOT EXISTS idx_corretor_status ON corretores(status);

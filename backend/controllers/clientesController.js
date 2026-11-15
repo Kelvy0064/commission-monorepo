@@ -1,5 +1,17 @@
 const pool = require('../config/database');
 
+// Normaliza a lista de idades do contrato. Retorna null se for inválida.
+// Ausente → [] (cliente sem idades informadas).
+const parseIdades = (idades) => {
+  if (idades === undefined || idades === null) return [];
+  if (!Array.isArray(idades)) return null;
+  const parsed = idades.map((idade) => Number(idade));
+  const valid = parsed.every((idade) => Number.isInteger(idade) && idade >= 0 && idade <= 130);
+  return valid ? parsed : null;
+};
+
+const IDADES_INVALIDAS = 'Idades devem ser uma lista de números inteiros entre 0 e 130';
+
 const clientesController = {
   // Listar todos os clientes
   async index(req, res) {
@@ -43,12 +55,16 @@ const clientesController = {
   async create(req, res) {
     try {
       const { nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status } = req.body;
+      const idades = parseIdades(req.body.idades);
+      if (idades === null) {
+        return res.status(400).json({ error: IDADES_INVALIDAS });
+      }
 
       const result = await pool.query(
-        `INSERT INTO clientes (nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO clientes (nome, cpf_cnpj, email, telefone, data_nascimento, idades, endereco, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
-        [nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status || 'ativo']
+        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, endereco, status || 'ativo']
       );
 
       res.status(201).json(result.rows[0]);
@@ -63,14 +79,20 @@ const clientesController = {
     try {
       const { id } = req.params;
       const { nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status } = req.body;
+      const idades = parseIdades(req.body.idades);
+      if (idades === null) {
+        return res.status(400).json({ error: IDADES_INVALIDAS });
+      }
 
+      // data_nascimento não é mais editada pela tela; mantém o valor salvo se não vier no corpo
       const result = await pool.query(
-        `UPDATE clientes 
+        `UPDATE clientes
          SET nome = $1, cpf_cnpj = $2, email = $3, telefone = $4,
-             data_nascimento = $5, endereco = $6, status = $7, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $8
+             data_nascimento = COALESCE($5, data_nascimento), idades = $6,
+             endereco = $7, status = $8, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $9
          RETURNING *`,
-        [nome, cpf_cnpj, email, telefone, data_nascimento, endereco, status, id]
+        [nome, cpf_cnpj, email, telefone, data_nascimento || null, idades, endereco, status, id]
       );
 
       if (result.rows.length === 0) {

@@ -80,13 +80,16 @@ const SELECT = `
          ativa, observacoes, created_at, updated_at
   FROM tabelas_comissao`;
 
+// A tabela pertence à empresa da seguradora dona dela
+const DA_EMPRESA = (param) => `seguradora_id IN (SELECT id FROM seguradoras WHERE empresa_id = ${param})`;
+
 const tabelasComissaoController = {
   // GET /seguradoras/:seguradoraId/tabelas-comissao
   async index(req, res) {
     try {
       const result = await pool.query(
-        `${SELECT} WHERE seguradora_id = $1 ORDER BY ativa DESC, nome`,
-        [req.params.seguradoraId]
+        `${SELECT} WHERE seguradora_id = $1 AND ${DA_EMPRESA('$2')} ORDER BY ativa DESC, nome`,
+        [req.params.seguradoraId, req.user.empresa_id]
       );
       res.json(result.rows);
     } catch (error) {
@@ -100,6 +103,12 @@ const tabelasComissaoController = {
     try {
       const parsed = parseBody(req.body);
       if (parsed.error) return res.status(400).json({ error: parsed.error });
+
+      const seguradora = await pool.query('SELECT id FROM seguradoras WHERE id = $1 AND empresa_id = $2', [
+        req.params.seguradoraId,
+        req.user.empresa_id,
+      ]);
+      if (seguradora.rows.length === 0) return res.status(404).json({ error: 'Seguradora não encontrada' });
 
       const values = { seguradora_id: req.params.seguradoraId, ...parsed.fields };
       const columns = Object.keys(values);
@@ -128,9 +137,9 @@ const tabelasComissaoController = {
       const updated = await pool.query(
         `UPDATE tabelas_comissao
          SET ${entries.map(([c], i) => `${c} = $${i + 1}`).join(', ')}, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $${entries.length + 1}
+         WHERE id = $${entries.length + 1} AND ${DA_EMPRESA(`$${entries.length + 2}`)}
          RETURNING id`,
-        [...entries.map(([, v]) => v), req.params.id]
+        [...entries.map(([, v]) => v), req.params.id, req.user.empresa_id]
       );
       if (updated.rows.length === 0) return res.status(404).json({ error: 'Tabela não encontrada' });
 
@@ -145,7 +154,10 @@ const tabelasComissaoController = {
   // DELETE /tabelas-comissao/:id
   async delete(req, res) {
     try {
-      const result = await pool.query('DELETE FROM tabelas_comissao WHERE id = $1 RETURNING id', [req.params.id]);
+      const result = await pool.query(
+        `DELETE FROM tabelas_comissao WHERE id = $1 AND ${DA_EMPRESA('$2')} RETURNING id`,
+        [req.params.id, req.user.empresa_id]
+      );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Tabela não encontrada' });
       res.json({ message: 'Tabela de comissão excluída' });
     } catch (error) {

@@ -6,6 +6,7 @@ const KanbanBoard = ({
   negociacoes,
   onOpen,
   onMove,
+  podeMover = true,
   selectionMode = false,
   selectedIds = new Set(),
   onToggleSelect,
@@ -82,6 +83,7 @@ const KanbanBoard = ({
                   }}
                   dragging={arrastando?.id === negociacao.id}
                   selectionMode={selectionMode}
+                  podeArrastar={podeMover}
                   selected={selectedIds.has(negociacao.id)}
                   onToggleSelect={onToggleSelect}
                 />

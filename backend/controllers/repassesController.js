@@ -1,11 +1,13 @@
 const pool = require('../config/database');
 const { PARCELA_COM_REPASSE, valorComissao } = require('../utils/comissaoParcela');
+const { escopoCorretor } = require('../utils/permissoes');
 
 const repassesController = {
-  // Listar repasses
+  // GET /repasses — da empresa; corretor vê só os próprios
   async index(req, res) {
     try {
       const { status, corretor_id } = req.query;
+      const params = [req.user.empresa_id];
       let query = `
         SELECT r.*,
                cor.nome as corretor_nome,
@@ -14,21 +16,21 @@ const repassesController = {
         FROM repasses r
         LEFT JOIN corretores cor ON r.corretor_destino_id = cor.id
         LEFT JOIN comissoes c ON r.comissao_id = c.id
-        WHERE 1=1
+        WHERE r.empresa_id = $1
       `;
-      const params = [];
-      let paramCount = 1;
 
       if (status) {
-        query += ` AND r.status = $${paramCount}`;
         params.push(status);
-        paramCount++;
+        query += ` AND r.status = $${params.length}`;
       }
 
-      if (corretor_id) {
-        query += ` AND r.corretor_destino_id = $${paramCount}`;
+      const escopo = escopoCorretor(req);
+      if (escopo !== null) {
+        params.push(escopo);
+        query += ` AND r.corretor_destino_id = $${params.length}`;
+      } else if (corretor_id) {
         params.push(corretor_id);
-        paramCount++;
+        query += ` AND r.corretor_destino_id = $${params.length}`;
       }
 
       query += ' ORDER BY r.data_previsao_pagamento DESC';
@@ -56,10 +58,11 @@ const repassesController = {
         JOIN corretores cor ON c.corretor_id = cor.id
         WHERE c.status = 'recebida'
         AND c.numero_parcela = $1
+        AND c.empresa_id = $2
         AND NOT EXISTS (
           SELECT 1 FROM repasses r WHERE r.comissao_id = c.id
         )
-      `, [PARCELA_COM_REPASSE]);
+      `, [PARCELA_COM_REPASSE, req.user.empresa_id]);
 
       let repassesGerados = 0;
 
@@ -70,10 +73,10 @@ const repassesController = {
 
         await client.query(
           `INSERT INTO repasses (comissao_id, corretor_destino_id, valor_repasse, percentual_repasse,
-                                 data_previsao_pagamento, status)
-           VALUES ($1, $2, $3, $4, $5, 'pendente')`,
+                                 data_previsao_pagamento, status, empresa_id)
+           VALUES ($1, $2, $3, $4, $5, 'pendente', $6)`,
           [comissao.id, comissao.corretor_id, valorRepasse, comissao.percentual_corretor,
-           dataPrevisao.toISOString().split('T')[0]]
+           dataPrevisao.toISOString().split('T')[0], comissao.empresa_id]
         );
 
         repassesGerados++;
@@ -106,9 +109,9 @@ const repassesController = {
              forma_pagamento = $2,
              comprovante_url = $3,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4
+         WHERE id = $4 AND empresa_id = $5
          RETURNING *`,
-        [data_pagamento || new Date().toISOString().split('T')[0], forma_pagamento, comprovante_url, id]
+        [data_pagamento || new Date().toISOString().split('T')[0], forma_pagamento, comprovante_url, id, req.user.empresa_id]
       );
 
       if (result.rows.length === 0) {

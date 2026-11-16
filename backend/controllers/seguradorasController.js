@@ -19,7 +19,9 @@ const seguradorasController = {
         `SELECT s.*,
                 (SELECT COUNT(*)::int FROM tabelas_comissao t WHERE t.seguradora_id = s.id AND t.ativa) AS tabelas_ativas
          FROM seguradoras s
-         ORDER BY s.nome`
+         WHERE s.empresa_id = $1
+         ORDER BY s.nome`,
+        [req.user.empresa_id]
       );
       res.json(result.rows);
     } catch (error) {
@@ -32,7 +34,10 @@ const seguradorasController = {
   async show(req, res) {
     try {
       const { id } = req.params;
-      const result = await pool.query('SELECT * FROM seguradoras WHERE id = $1', [id]);
+      const result = await pool.query('SELECT * FROM seguradoras WHERE id = $1 AND empresa_id = $2', [
+        id,
+        req.user.empresa_id,
+      ]);
       
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Seguradora não encontrada' });
@@ -53,11 +58,11 @@ const seguradorasController = {
 
       const result = await pool.query(
         `INSERT INTO seguradoras (nome, cnpj, contato, email, dia_pagamento, prazo_repasse_dias, observacoes,
-                                  contrato_assinado, contrato_assinado_em, regras_pagamento, pos_venda)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                                  contrato_assinado, contrato_assinado_em, regras_pagamento, pos_venda, empresa_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
         [nome, cnpj, contato, email, dia_pagamento, prazo_repasse_dias, observacoes,
-         r.contrato_assinado, r.contrato_assinado_em, r.regras_pagamento, r.pos_venda]
+         r.contrato_assinado, r.contrato_assinado_em, r.regras_pagamento, r.pos_venda, req.user.empresa_id]
       );
 
       res.status(201).json(result.rows[0]);
@@ -83,10 +88,10 @@ const seguradorasController = {
              dia_pagamento = $5, prazo_repasse_dias = $6, observacoes = $7,
              contrato_assinado = $8, contrato_assinado_em = $9, regras_pagamento = $10, pos_venda = $11,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $12
+         WHERE id = $12 AND empresa_id = $13
          RETURNING *`,
         [nome, cnpj, contato, email, dia_pagamento, prazo_repasse_dias, observacoes,
-         r.contrato_assinado, r.contrato_assinado_em, r.regras_pagamento, r.pos_venda, id]
+         r.contrato_assinado, r.contrato_assinado_em, r.regras_pagamento, r.pos_venda, id, req.user.empresa_id]
       );
 
       if (result.rows.length === 0) {
@@ -95,6 +100,9 @@ const seguradorasController = {
 
       res.json(result.rows[0]);
     } catch (error) {
+      if (error.code === '23505') {
+        return res.status(400).json({ error: 'CNPJ já cadastrado' });
+      }
       console.error('Erro ao atualizar seguradora:', error);
       res.status(500).json({ error: 'Erro ao atualizar seguradora' });
     }
@@ -104,7 +112,10 @@ const seguradorasController = {
   async delete(req, res) {
     try {
       const { id } = req.params;
-      const result = await pool.query('DELETE FROM seguradoras WHERE id = $1 RETURNING *', [id]);
+      const result = await pool.query('DELETE FROM seguradoras WHERE id = $1 AND empresa_id = $2 RETURNING id', [
+        id,
+        req.user.empresa_id,
+      ]);
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Seguradora não encontrada' });
@@ -112,6 +123,9 @@ const seguradorasController = {
 
       res.json({ message: 'Seguradora deletada com sucesso' });
     } catch (error) {
+      if (error.code === '23503') {
+        return res.status(400).json({ error: 'Seguradora tem apólices vinculadas' });
+      }
       console.error('Erro ao deletar seguradora:', error);
       res.status(500).json({ error: 'Erro ao deletar seguradora' });
     }

@@ -6,7 +6,17 @@ import { ETAPAS, STATUS_NEGOCIACAO } from '../constants';
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm';
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
 
-const NegociacaoForm = ({ negociacao, clientes, corretores, onSubmit, onDelete, onCancel, saving }) => {
+const NegociacaoForm = ({
+  negociacao,
+  clientes,
+  corretores,
+  onSubmit,
+  onDelete,
+  onCancel,
+  saving,
+  readOnly = false,
+  esconderCorretor = false,
+}) => {
   const [form, setForm] = useState({
     cliente_id: negociacao?.cliente_id ?? '',
     corretor_id: negociacao?.corretor_id ?? '',
@@ -64,6 +74,8 @@ const NegociacaoForm = ({ negociacao, clientes, corretores, onSubmit, onDelete, 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Somente leitura (ex.: pós-venda) desabilita todos os campos */}
+      <fieldset disabled={readOnly} className="space-y-4">
       <div>
         <label className={labelClass} htmlFor="neg-cliente">
           Cliente *
@@ -111,26 +123,29 @@ const NegociacaoForm = ({ negociacao, clientes, corretores, onSubmit, onDelete, 
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label className={labelClass} htmlFor="neg-corretor">
-            Corretor
-          </label>
-          <select
-            id="neg-corretor"
-            value={form.corretor_id}
-            onChange={(e) => set('corretor_id', e.target.value)}
-            className={inputClass}
-            disabled={saving}
-          >
-            <option value="">Sem corretor</option>
-            {corretoresDisponiveis.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-                {c.status !== 'ativo' ? ' (inativo)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Corretor logado: a negociação é sempre dele (a API força) */}
+        {!esconderCorretor && (
+          <div>
+            <label className={labelClass} htmlFor="neg-corretor">
+              Corretor
+            </label>
+            <select
+              id="neg-corretor"
+              value={form.corretor_id}
+              onChange={(e) => set('corretor_id', e.target.value)}
+              className={inputClass}
+              disabled={saving}
+            >
+              <option value="">Sem corretor</option>
+              {corretoresDisponiveis.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                  {c.status !== 'ativo' ? ' (inativo)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className={labelClass} htmlFor="neg-etapa">
@@ -235,14 +250,18 @@ const NegociacaoForm = ({ negociacao, clientes, corretores, onSubmit, onDelete, 
         />
       </div>
 
+      </fieldset>
+
       <div className="flex flex-wrap gap-3 pt-2">
-        <Button type="submit" variant="primary" className="flex-1" loading={saving} disabled={saving}>
-          {negociacao ? 'Salvar' : 'Criar negociação'}
-        </Button>
+        {!readOnly && (
+          <Button type="submit" variant="primary" className="flex-1" loading={saving} disabled={saving}>
+            {negociacao ? 'Salvar' : 'Criar negociação'}
+          </Button>
+        )}
         <Button type="button" variant="secondary" className="flex-1" onClick={onCancel} disabled={saving}>
-          Cancelar
+          {readOnly ? 'Fechar' : 'Cancelar'}
         </Button>
-        {negociacao && (
+        {negociacao && onDelete && !readOnly && (
           <Button type="button" variant="danger" icon={Trash2} onClick={onDelete} disabled={saving}>
             Excluir
           </Button>

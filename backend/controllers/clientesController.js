@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { escopoCorretor } = require('../utils/permissoes');
 
 // Normaliza a lista de idades do contrato. Retorna null se for inválida.
 // Ausente → [] (cliente sem idades informadas).
@@ -78,11 +79,19 @@ const parseClienteBody = (body) => {
   };
 };
 
-// Valida e insere um cliente. Retorna { cliente } ou { error } (erro de validação).
-// `db` permite rodar dentro de uma transação (client do pool); padrão: pool.
-const insertCliente = async (body, db = pool) => {
+// O corretor informado precisa ser da mesma empresa (a FK sozinha aceitaria de outra empresa)
+const corretorDaEmpresa = async (db, corretorId, empresaId) => {
+  if (!corretorId) return true;
+  const result = await db.query('SELECT 1 FROM corretores WHERE id = $1 AND empresa_id = $2', [corretorId, empresaId]);
+  return result.rows.length > 0;
+};
+
+// Valida e insere um cliente da empresa. Retorna { cliente } ou { error } (erro de validação).
+// `db` permite rodar dentro de uma transação (client do pool).
+const insertCliente = async (body, db, empresaId) => {
   const parsed = parseClienteBody(body);
   if (parsed.error) return { error: parsed.error };
+  if (!(await corretorDaEmpresa(db, parsed.fields.corretor_id, empresaId))) return { error: CORRETOR_INVALIDO };
 
   // data_cadastro pode ser informada (carga retroativa); senão, hoje
   const dataCadastro = body.data_cadastro || null;
@@ -95,6 +104,7 @@ const insertCliente = async (body, db = pool) => {
     status: body.status || 'ativo',
     data_nascimento: body.data_nascimento || null,
     ...Object.fromEntries(UTM_FIELDS.map((f) => [f, emptyToNull(body[f])])),
+    empresa_id: empresaId,
   };
   const columns = Object.keys(values);
   const placeholders = columns.map((_, i) => `$${i + 1}`);
@@ -124,18 +134,23 @@ const clientesController = {
   // Filtros: busca (nome, CPF/CNPJ, email, telefone), status, corretor_id (id ou "sem").
   // Sem `page`, devolve o array completo (usado nos selects de outras telas).
   // Com `page`, devolve { data, total, page, pageSize, totalPages }.
+  // Corretor só vê os próprios clientes (filtro de corretor é ignorado).
   async index(req, res) {
     try {
       const { status, corretor_id, busca } = req.query;
-      const conditions = [];
-      const params = [];
+      const params = [req.user.empresa_id];
+      const conditions = ['c.empresa_id = $1'];
 
       if (status) {
         params.push(status);
         conditions.push(`c.status = $${params.length}`);
       }
 
-      if (corretor_id === 'sem') {
+      const escopo = escopoCorretor(req);
+      if (escopo !== null) {
+        params.push(escopo);
+        conditions.push(`c.corretor_id = $${params.length}`);
+      } else if (corretor_id === 'sem') {
         conditions.push('c.corretor_id IS NULL');
       } else if (corretor_id) {
         const corretorId = parseCorretorId(corretor_id);
@@ -166,7 +181,7 @@ const clientesController = {
         }
       }
 
-      const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+      const where = ` WHERE ${conditions.join(' AND ')}`;
 
       if (req.query.page === undefined) {
         const result = await pool.query(`${SELECT_CLIENTES}${where} ORDER BY c.nome`, params);
@@ -203,8 +218,12 @@ const clientesController = {
   async show(req, res) {
     try {
       const { id } = req.params;
-      const result = await pool.query(`${SELECT_CLIENTES} WHERE c.id = $1`, [id]);
-      
+      const escopo = escopoCorretor(req);
+      const result = await pool.query(
+        `${SELECT_CLIENTES} WHERE c.id = $1 AND c.empresa_id = $2 AND ($3::int IS NULL OR c.corretor_id = $3)`,
+        [id, req.user.empresa_id, escopo]
+      );
+
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Cliente não encontrado' });
       }
@@ -216,10 +235,12 @@ const clientesController = {
     }
   },
 
-  // Criar novo cliente (usuário logado)
+  // Criar novo cliente (usuário logado). Cliente criado por corretor é sempre dele.
   async create(req, res) {
     try {
-      const result = await insertCliente(req.body);
+      const escopo = escopoCorretor(req);
+      const body = escopo !== null ? { ...req.body, corretor_id: escopo } : req.body;
+      const result = await insertCliente(body, pool, req.user.empresa_id);
       if (result.error) {
         return res.status(400).json({ error: result.error });
       }
@@ -234,22 +255,33 @@ const clientesController = {
   // Aceita só os campos do formulário; status é sempre 'lead', sem corretor nem data retroativa,
   // e a resposta não devolve os dados gravados.
   // O lead já entra no quadro de negociações, em "Sem contato" (cliente e negociação na mesma transação).
+  // Empresa do lead: código em `empresa` (corpo ou query) ou LEADS_EMPRESA_CODIGO (padrão NEVITTA).
   async createLead(req, res) {
     const db = await pool.connect();
     try {
+      const codigo = String(req.body.empresa || req.query.empresa || process.env.LEADS_EMPRESA_CODIGO || 'NEVITTA')
+        .trim()
+        .toUpperCase();
+      const empresa = await db.query('SELECT id FROM empresas WHERE codigo = $1 AND ativa', [codigo]);
+      if (empresa.rows.length === 0) {
+        return res.status(400).json({ error: 'Empresa não encontrada' });
+      }
+      const empresaId = empresa.rows[0].id;
+
       const body = Object.fromEntries(
         LEAD_PUBLIC_FIELDS.filter((f) => req.body[f] !== undefined).map((f) => [f, req.body[f]])
       );
 
       await db.query('BEGIN');
-      const result = await insertCliente({ ...body, status: 'lead' }, db);
+      const result = await insertCliente({ ...body, status: 'lead' }, db, empresaId);
       if (result.error) {
         await db.query('ROLLBACK');
         return res.status(400).json({ error: result.error });
       }
       await db.query(
-        `INSERT INTO negociacoes (cliente_id, etapa, status) VALUES ($1, 'sem_contato', 'em_andamento')`,
-        [result.cliente.id]
+        `INSERT INTO negociacoes (cliente_id, etapa, status, empresa_id)
+         VALUES ($1, 'sem_contato', 'em_andamento', $2)`,
+        [result.cliente.id, empresaId]
       );
       await db.query('COMMIT');
 
@@ -267,9 +299,16 @@ const clientesController = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const parsed = parseClienteBody(req.body);
+      // Corretor só edita os próprios clientes e não pode passá-los para outro corretor
+      const escopo = escopoCorretor(req);
+      const body = escopo !== null ? { ...req.body, corretor_id: escopo } : req.body;
+
+      const parsed = parseClienteBody(body);
       if (parsed.error) {
         return res.status(400).json({ error: parsed.error });
+      }
+      if (!(await corretorDaEmpresa(pool, parsed.fields.corretor_id, req.user.empresa_id))) {
+        return res.status(400).json({ error: CORRETOR_INVALIDO });
       }
 
       const params = [];
@@ -284,11 +323,12 @@ const clientesController = {
         sets.push(`${column} = COALESCE($${params.length}, ${column})`);
       }
 
-      params.push(id);
+      params.push(id, req.user.empresa_id, escopo);
+      const n = params.length;
       const result = await pool.query(
         `UPDATE clientes
          SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $${params.length}
+         WHERE id = $${n - 2} AND empresa_id = $${n - 1} AND ($${n}::int IS NULL OR corretor_id = $${n})
          RETURNING *`,
         params
       );
@@ -313,15 +353,21 @@ const clientesController = {
       const { id } = req.params;
       
       // Verificar se há apólices vinculadas
-      const apolices = await pool.query('SELECT id FROM apolices WHERE cliente_id = $1', [id]);
-      
+      const apolices = await pool.query('SELECT id FROM apolices WHERE cliente_id = $1 AND empresa_id = $2', [
+        id,
+        req.user.empresa_id,
+      ]);
+
       if (apolices.rows.length > 0) {
-        return res.status(400).json({ 
-          error: 'Não é possível excluir cliente com apólices vinculadas' 
+        return res.status(400).json({
+          error: 'Não é possível excluir cliente com apólices vinculadas'
         });
       }
 
-      const result = await pool.query('DELETE FROM clientes WHERE id = $1 RETURNING *', [id]);
+      const result = await pool.query('DELETE FROM clientes WHERE id = $1 AND empresa_id = $2 RETURNING id', [
+        id,
+        req.user.empresa_id,
+      ]);
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Cliente não encontrado' });

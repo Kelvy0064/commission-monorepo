@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LogIn } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/common/Button/Button';
 
@@ -75,6 +76,13 @@ const Login = () => {
             Entrar
           </Button>
         </form>
+
+        <p className="text-sm text-gray-600 text-center mt-6">
+          Ainda não tem acesso?{' '}
+          <Link to="/cadastro" className="font-medium text-blue-700 hover:underline">
+            Criar conta
+          </Link>
+        </p>
       </div>
     </div>
   );

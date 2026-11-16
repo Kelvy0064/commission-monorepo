@@ -5,8 +5,11 @@ import RepassesTable from './components/RepassesTable';
 import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
 import Card from '../../components/common/Card/Card';
+import { useAuth } from '../../context/AuthContext';
 
 const Repasses = () => {
+  const { pode } = useAuth();
+  const podeEditar = pode('repasses.editar'); // corretor só consulta os próprios
   const { repasses, loading, error, gerarRepasses, marcarPago, refresh } = useRepasses();
   const [alert, setAlert] = useState(null);
 
@@ -39,8 +42,12 @@ const Repasses = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Repasses</h1>
-        <p className="text-gray-600">Gerencie os repasses à equipe</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">{podeEditar ? 'Repasses' : 'Meus repasses'}</h1>
+        <p className="text-gray-600">
+          {podeEditar
+            ? 'Gerencie os repasses à equipe'
+            : 'Seu percentual sobre a 1ª parcela de cada apólice, calculado sobre o valor que a corretora recebeu'}
+        </p>
       </div>
 
       {alert && <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} />}
@@ -50,9 +57,11 @@ const Repasses = () => {
         className="mb-6"
         actions={
           <>
-            <Button variant="success" icon={Plus} onClick={handleGerarRepasses} disabled={loading} loading={loading}>
-              Gerar Repasses
-            </Button>
+            {podeEditar && (
+              <Button variant="success" icon={Plus} onClick={handleGerarRepasses} disabled={loading} loading={loading}>
+                Gerar Repasses
+              </Button>
+            )}
             <Button variant="secondary" icon={RefreshCw} onClick={refresh} disabled={loading} loading={loading}>
               Atualizar
             </Button>
@@ -75,7 +84,7 @@ const Repasses = () => {
       </Card>
 
       <Card>
-        <RepassesTable repasses={repasses} loading={loading} onMarcarPago={handleMarcarPago} />
+        <RepassesTable repasses={repasses} loading={loading} onMarcarPago={podeEditar ? handleMarcarPago : null} />
       </Card>
     </div>
   );

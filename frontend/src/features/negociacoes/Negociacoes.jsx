@@ -12,6 +12,7 @@ import Alert from '../../components/common/Alert/Alert';
 import Spinner from '../../components/common/Spinner/Spinner';
 import { clientesService } from '../../api/services/clientes.service';
 import { corretoresService } from '../../api/services/corretores.service';
+import { useAuth } from '../../context/AuthContext';
 
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white';
@@ -19,6 +20,8 @@ const inputClass =
 const Negociacoes = () => {
   const { negociacoes, loading, error, filtros, updateFiltro, limparFiltros, moverEtapa, save, remove, refresh } =
     useNegociacoes();
+  const { user, pode } = useAuth();
+  const ehCorretor = user?.role === 'corretor';
 
   const [corretores, setCorretores] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -82,7 +85,7 @@ const Negociacoes = () => {
   };
 
   useEffect(() => {
-    corretoresService.getAll().then(setCorretores).catch(() => setCorretores([]));
+    corretoresService.getOpcoes().then(setCorretores).catch(() => setCorretores([]));
   }, []);
 
   const showAlert = useCallback((type, message) => {
@@ -143,14 +146,16 @@ const Negociacoes = () => {
           <Button variant="secondary" icon={RefreshCw} onClick={refresh} disabled={loading} loading={loading}>
             Atualizar
           </Button>
-          {!selecionando && (
+          {!selecionando && pode('negociacoes.distribuir') && (
             <Button variant="secondary" icon={CheckSquare} onClick={() => setSelecionando(true)}>
               Distribuir
             </Button>
           )}
-          <Button variant="primary" icon={Plus} onClick={() => openModal()}>
-            Nova negociação
-          </Button>
+          {pode('negociacoes.criar') && (
+            <Button variant="primary" icon={Plus} onClick={() => openModal()}>
+              Nova negociação
+            </Button>
+          )}
         </div>
       </div>
 
@@ -213,22 +218,25 @@ const Negociacoes = () => {
             />
           </div>
         </div>
-        <div className="md:col-span-3">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Corretor</label>
-          <select
-            value={filtros.corretor_id}
-            onChange={(e) => updateFiltro('corretor_id', e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Todos</option>
-            <option value="sem">Sem corretor</option>
-            {corretores.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Corretor vê só as próprias negociações: filtro por corretor não se aplica */}
+        {!ehCorretor && (
+          <div className="md:col-span-3">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Corretor</label>
+            <select
+              value={filtros.corretor_id}
+              onChange={(e) => updateFiltro('corretor_id', e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Todos</option>
+              <option value="sem">Sem corretor</option>
+              {corretores.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="md:col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
           <select
@@ -280,6 +288,7 @@ const Negociacoes = () => {
             negociacoes={negociacoes}
             onOpen={openModal}
             onMove={handleMove}
+            podeMover={pode('negociacoes.editar')}
             selectionMode={selecionando}
             selectedIds={selecionadasVisiveis}
             onToggleSelect={toggleSelect}
@@ -300,7 +309,7 @@ const Negociacoes = () => {
       <Modal
         isOpen={modal.open}
         onClose={closeModal}
-        title={modal.negociacao ? 'Editar negociação' : 'Nova negociação'}
+        title={modal.negociacao ? (pode('negociacoes.editar') ? 'Editar negociação' : 'Negociação') : 'Nova negociação'}
       >
         <NegociacaoForm
           key={modal.negociacao?.id ?? 'nova'}
@@ -308,9 +317,11 @@ const Negociacoes = () => {
           clientes={clientes}
           corretores={corretores}
           onSubmit={handleSubmit}
-          onDelete={handleDelete}
+          onDelete={pode('negociacoes.excluir') ? handleDelete : null}
           onCancel={closeModal}
           saving={saving}
+          readOnly={Boolean(modal.negociacao) && !pode('negociacoes.editar')}
+          esconderCorretor={ehCorretor}
         />
       </Modal>
     </div>

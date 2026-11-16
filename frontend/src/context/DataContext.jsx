@@ -28,7 +28,8 @@ export const DataProvider = ({ children }) => {
     setLoading(true);
     try {
       const [corretoresData, seguradorasData, clientesData] = await Promise.all([
-        corretoresService.getAll().catch(() => []),
+        // Opções (id/nome/status) valem para todos os perfis; seguradoras dá 403 para quem não pode ver
+        corretoresService.getOpcoes().catch(() => []),
         seguradorasService.getAll().catch(() => []),
         clientesService.getAll().catch(() => []),
       ]);

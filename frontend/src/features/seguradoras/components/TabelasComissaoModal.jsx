@@ -8,7 +8,8 @@ import { seguradorasService } from '../../../api/services/seguradoras.service';
 import { modalidadeLabel, resumoTabela } from '../comissao';
 import { formatDate } from '../../../utils/formatters';
 
-const TabelasComissaoModal = ({ seguradora, onClose, onChanged }) => {
+// readOnly: gestor consulta as tabelas; só o administrador cria/edita/exclui
+const TabelasComissaoModal = ({ seguradora, onClose, onChanged, readOnly = false }) => {
   const [tabelas, setTabelas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -114,7 +115,7 @@ const TabelasComissaoModal = ({ seguradora, onClose, onChanged }) => {
                       }`}
                   </p>
                 </div>
-                <div className="flex gap-1 shrink-0">
+                <div className={`flex gap-1 shrink-0 ${readOnly ? 'hidden' : ''}`}>
                   <button
                     type="button"
                     onClick={() => setEditando({ tabela: t })}
@@ -143,9 +144,11 @@ const TabelasComissaoModal = ({ seguradora, onClose, onChanged }) => {
             </div>
           ))}
 
-          <Button variant="primary" icon={Plus} onClick={() => setEditando({ tabela: null })}>
-            Nova tabela de comissão
-          </Button>
+          {!readOnly && (
+            <Button variant="primary" icon={Plus} onClick={() => setEditando({ tabela: null })}>
+              Nova tabela de comissão
+            </Button>
+          )}
         </div>
       )}
     </Modal>

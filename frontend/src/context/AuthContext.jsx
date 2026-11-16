@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import apiClient from '../api/client';
 import { TOKEN_KEY } from '../api/config';
+import { pode } from '../auth/permissoes';
 
 const AuthContext = createContext(null);
 
@@ -52,7 +53,10 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   }, []);
 
+  // pode('clientes.editar') → o perfil do usuário logado tem essa permissão?
+  const podeFazer = useCallback((permissao) => pode(user?.role, permissao), [user]);
+
   return (
-    <AuthContext.Provider value={{ user, checking, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, checking, login, logout, pode: podeFazer }}>{children}</AuthContext.Provider>
   );
 };

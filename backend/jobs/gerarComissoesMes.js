@@ -49,10 +49,11 @@ async function gerarComissoesMes(referencia = new Date()) {
     await pool.query(
       `INSERT INTO comissoes (apolice_id, corretor_id, competencia, numero_parcela, tipo, valor_premio,
                               percentual_comissao, valor_comissao_bruto, valor_comissao_liquido,
-                              data_previsao_recebimento, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, 'prevista')`,
+                              data_previsao_recebimento, status, empresa_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, 'prevista', $10)`,
       [apolice.id, apolice.corretor_responsavel_id, competencia, parcela, regra.tipo,
-       apolice.valor_premio_mensal, regra.percentual, valor, dataPrevisaoRecebimento(referencia, apolice)]
+       apolice.valor_premio_mensal, regra.percentual, valor, dataPrevisaoRecebimento(referencia, apolice),
+       apolice.empresa_id]
     );
     geradas++;
   }

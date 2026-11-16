@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Button from '../../common/Button/Button';
 import { validateRequired, validateCNPJ } from '../../../utils/validators';
 
-const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading }) => {
+const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading, readOnly = false }) => {
   const [formData, setFormData] = useState({
     nome: '',
     cnpj: '',
@@ -69,6 +69,8 @@ const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Somente leitura (gestor e pós-venda consultam, só o administrador edita) */}
+      <fieldset disabled={readOnly} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
         <input
@@ -221,12 +223,16 @@ const SeguradoraForm = ({ seguradora, onSubmit, onCancel, loading }) => {
         />
       </div>
 
+      </fieldset>
+
       <div className="flex gap-3 pt-4">
-        <Button type="submit" variant="primary" className="flex-1" loading={loading}>
-          {seguradora ? 'Atualizar' : 'Criar'}
-        </Button>
+        {!readOnly && (
+          <Button type="submit" variant="primary" className="flex-1" loading={loading}>
+            {seguradora ? 'Atualizar' : 'Criar'}
+          </Button>
+        )}
         <Button type="button" variant="secondary" className="flex-1" onClick={onCancel} disabled={loading}>
-          Cancelar
+          {readOnly ? 'Fechar' : 'Cancelar'}
         </Button>
       </div>
     </form>

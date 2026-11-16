@@ -4,6 +4,7 @@ import { validateRequired, validateEmail } from '../../../utils/validators';
 import { STATUS } from '../../../utils/constants';
 import { maskTelefone } from '../../../utils/formatters';
 import { corretoresService } from '../../../api/services/corretores.service';
+import { useAuth } from '../../../context/AuthContext';
 
 const TEXT_FIELDS = [
   'nome', 'cpf_cnpj', 'email', 'endereco',
@@ -12,13 +13,15 @@ const TEXT_FIELDS = [
 
 const inputClass = 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500';
 
-const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
+const ClienteForm = ({ cliente, onSubmit, onCancel, loading, readOnly = false }) => {
+  const { user } = useAuth();
+  const ehCorretor = user?.role === 'corretor';
   const [corretores, setCorretores] = useState([]);
 
   // Busca a lista sempre que o formulário abre, para incluir corretores recém-cadastrados
   useEffect(() => {
     corretoresService
-      .getAll()
+      .getOpcoes()
       .then(setCorretores)
       .catch(() => setCorretores([]));
   }, []);
@@ -97,6 +100,8 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Somente leitura (ex.: pós-venda) desabilita todos os campos */}
+      <fieldset disabled={readOnly} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
         <input
@@ -154,22 +159,25 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Corretor</label>
-        <select
-          value={formData.corretor_id}
-          onChange={(e) => handleChange('corretor_id', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          disabled={loading}
-        >
-          <option value="">Sem corretor</option>
-          {corretoresDisponiveis.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome}{c.status !== STATUS.ATIVO ? ' (inativo)' : ''}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Corretor logado: o cliente é sempre dele (a API força), então o campo não aparece */}
+      {!ehCorretor && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Corretor</label>
+          <select
+            value={formData.corretor_id}
+            onChange={(e) => handleChange('corretor_id', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            disabled={loading}
+          >
+            <option value="">Sem corretor</option>
+            {corretoresDisponiveis.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}{c.status !== STATUS.ATIVO ? ' (inativo)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Idades do contrato</label>
@@ -324,12 +332,16 @@ const ClienteForm = ({ cliente, onSubmit, onCancel, loading }) => {
         </select>
       </div>
 
+      </fieldset>
+
       <div className="flex gap-3 pt-4">
-        <Button type="submit" variant="primary" className="flex-1" loading={loading}>
-          {cliente ? 'Atualizar' : 'Criar'}
-        </Button>
+        {!readOnly && (
+          <Button type="submit" variant="primary" className="flex-1" loading={loading}>
+            {cliente ? 'Atualizar' : 'Criar'}
+          </Button>
+        )}
         <Button type="button" variant="secondary" className="flex-1" onClick={onCancel} disabled={loading}>
-          Cancelar
+          {readOnly ? 'Fechar' : 'Cancelar'}
         </Button>
       </div>
     </form>

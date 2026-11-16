@@ -4,7 +4,8 @@ import Spinner from '../../../components/common/Spinner/Spinner';
 
 const AConfirmar = () => <span className="text-amber-700 italic">A confirmar</span>;
 
-const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete, onComissoes }) => {
+// onComissoes nulo esconde a coluna de tabelas; podeEditar=false troca "Editar" por "Ver"
+const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete, onComissoes, podeEditar = true }) => {
   if (loading) return <Spinner />;
 
   if (seguradoras.length === 0) {
@@ -26,7 +27,7 @@ const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete, onComissoes 
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Dia Pagamento</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prazo Repasse</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contrato</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comissões</th>
+            {onComissoes && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comissões</th>}
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ações</th>
           </tr>
         </thead>
@@ -51,29 +52,35 @@ const SeguradorasTable = ({ seguradoras, loading, onEdit, onDelete, onComissoes 
                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pendente</span>
                 )}
               </td>
-              <td className="px-4 py-3 text-sm">
-                <button
-                  onClick={() => onComissoes(seguradora)}
-                  className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
-                >
-                  {seguradora.tabelas_ativas
-                    ? `${seguradora.tabelas_ativas} tabela${seguradora.tabelas_ativas > 1 ? 's' : ''}`
-                    : 'Cadastrar'}
-                </button>
-              </td>
+              {onComissoes && (
+                <td className="px-4 py-3 text-sm">
+                  <button
+                    onClick={() => onComissoes(seguradora)}
+                    className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+                  >
+                    {seguradora.tabelas_ativas
+                      ? `${seguradora.tabelas_ativas} tabela${seguradora.tabelas_ativas > 1 ? 's' : ''}`
+                      : podeEditar
+                        ? 'Cadastrar'
+                        : 'Nenhuma'}
+                  </button>
+                </td>
+              )}
               <td className="px-4 py-3 text-sm">
                 <button
                   onClick={() => onEdit(seguradora)}
                   className="text-blue-600 hover:text-blue-800 mr-3 font-medium"
                 >
-                  Editar
+                  {podeEditar ? 'Editar' : 'Ver'}
                 </button>
-                <button
-                  onClick={() => onDelete(seguradora.id)}
-                  className="text-red-600 hover:text-red-800 font-medium"
-                >
-                  Excluir
-                </button>
+                {podeEditar && (
+                  <button
+                    onClick={() => onDelete(seguradora.id)}
+                    className="text-red-600 hover:text-red-800 font-medium"
+                  >
+                    Excluir
+                  </button>
+                )}
               </td>
             </tr>
           ))}

@@ -9,8 +9,11 @@ import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
 import Card from '../../components/common/Card/Card';
 import { useModal } from '../../hooks/useModal';
+import { useAuth } from '../../context/AuthContext';
 
 const Seguradoras = () => {
+  const { pode } = useAuth();
+  const podeEditar = pode('seguradoras.editar');
   const { seguradoras, loading, error, createSeguradora, updateSeguradora, deleteSeguradora, refresh } = useSeguradoras();
   const { isOpen, modalData, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState(null);
@@ -60,9 +63,11 @@ const Seguradoras = () => {
             <Button variant="secondary" icon={RefreshCw} onClick={refresh} disabled={loading} loading={loading}>
               Atualizar
             </Button>
-            <Button variant="primary" icon={Plus} onClick={() => openModal(null)}>
-              Nova Seguradora
-            </Button>
+            {podeEditar && (
+              <Button variant="primary" icon={Plus} onClick={() => openModal(null)}>
+                Nova Seguradora
+              </Button>
+            )}
           </>
         }
       >
@@ -77,16 +82,32 @@ const Seguradoras = () => {
           loading={loading}
           onEdit={openModal}
           onDelete={handleDelete}
-          onComissoes={setComissoesDe}
+          onComissoes={pode('tabelas_comissao.ver') ? setComissoesDe : null}
+          podeEditar={podeEditar}
         />
       </Card>
 
       {comissoesDe && (
-        <TabelasComissaoModal seguradora={comissoesDe} onClose={() => setComissoesDe(null)} onChanged={refresh} />
+        <TabelasComissaoModal
+          seguradora={comissoesDe}
+          onClose={() => setComissoesDe(null)}
+          onChanged={refresh}
+          readOnly={!pode('tabelas_comissao.editar')}
+        />
       )}
 
-      <Modal isOpen={isOpen} onClose={closeModal} title={modalData ? 'Editar Seguradora' : 'Nova Seguradora'}>
-        <SeguradoraForm seguradora={modalData} onSubmit={handleSubmit} onCancel={closeModal} loading={loading} />
+      <Modal
+        isOpen={isOpen}
+        onClose={closeModal}
+        title={modalData ? (podeEditar ? 'Editar Seguradora' : 'Seguradora') : 'Nova Seguradora'}
+      >
+        <SeguradoraForm
+          seguradora={modalData}
+          onSubmit={handleSubmit}
+          onCancel={closeModal}
+          loading={loading}
+          readOnly={!podeEditar}
+        />
       </Modal>
     </div>
   );

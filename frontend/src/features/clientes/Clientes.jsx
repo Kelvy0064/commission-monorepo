@@ -10,8 +10,10 @@ import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
 import Card from '../../components/common/Card/Card';
 import { useModal } from '../../hooks/useModal';
+import { useAuth } from '../../context/AuthContext';
 
 const Clientes = () => {
+  const { pode } = useAuth();
   const {
     clientes,
     loading,
@@ -78,9 +80,11 @@ const Clientes = () => {
             <Button variant="secondary" icon={RefreshCw} onClick={refresh} disabled={loading} loading={loading}>
               Atualizar
             </Button>
-            <Button variant="primary" icon={Plus} onClick={() => openModal(null)}>
-              Novo Cliente
-            </Button>
+            {pode('clientes.criar') && (
+              <Button variant="primary" icon={Plus} onClick={() => openModal(null)}>
+                Novo Cliente
+              </Button>
+            )}
           </>
         }
       >
@@ -97,6 +101,8 @@ const Clientes = () => {
           emptyMessage={temFiltro ? 'Nenhum cliente encontrado com esses filtros' : 'Nenhum cliente cadastrado'}
           onEdit={openModal}
           onDelete={handleDelete}
+          podeEditar={pode('clientes.editar')}
+          podeExcluir={pode('clientes.excluir')}
         />
         <Pagination
           page={page}
@@ -109,8 +115,18 @@ const Clientes = () => {
         />
       </Card>
 
-      <Modal isOpen={isOpen} onClose={closeModal} title={modalData ? 'Editar Cliente' : 'Novo Cliente'}>
-        <ClienteForm cliente={modalData} onSubmit={handleSubmit} onCancel={closeModal} loading={loading} />
+      <Modal
+        isOpen={isOpen}
+        onClose={closeModal}
+        title={modalData ? (pode('clientes.editar') ? 'Editar Cliente' : 'Cliente') : 'Novo Cliente'}
+      >
+        <ClienteForm
+          cliente={modalData}
+          onSubmit={handleSubmit}
+          onCancel={closeModal}
+          loading={loading}
+          readOnly={Boolean(modalData) && !pode('clientes.editar')}
+        />
       </Modal>
     </div>
   );

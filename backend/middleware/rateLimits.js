@@ -14,4 +14,7 @@ const loginLimiter = rateLimit(options(10, 15, 'Muitas tentativas de login. Tent
 // Envio de leads pela landing page por IP (dificulta spam)
 const leadLimiter = rateLimit(options(20, 60, 'Muitos envios. Tente novamente mais tarde.'));
 
-module.exports = { loginLimiter, leadLimiter };
+// Auto-cadastro de usuários por IP (dificulta criação em massa)
+const registroLimiter = rateLimit(options(5, 60, 'Muitos cadastros a partir desta rede. Tente novamente mais tarde.'));
+
+module.exports = { loginLimiter, leadLimiter, registroLimiter };

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Button from '../../common/Button/Button';
 import { validateRequired } from '../../../utils/validators';
 import { TIPO_SEGURO } from '../../../utils/constants';
-import { useData } from '../../../context/DataContext';
 import { seguradorasService } from '../../../api/services/seguradoras.service';
 import { cronograma, fmtPct, resumoTabela, modalidadeLabel } from '../../../features/seguradoras/comissao';
 import { formatCurrency } from '../../../utils/formatters';
@@ -12,9 +11,11 @@ const ApoliceForm = ({
   onSubmit, 
   onCancel, 
   loading,
-  clientes = useData(),
-  seguradoras = useData(),
-  corretores = useData()
+  clientes = [],
+  seguradoras = [],
+  corretores = [],
+  // Pós-venda: só campos operacionais; comissão escondida e campos financeiros bloqueados
+  modoOperacional = false,
 }) => {
   
   const [formData, setFormData] = useState({
@@ -32,6 +33,11 @@ const ApoliceForm = ({
     observacoes: '',
     ...apolice,
     tabela_comissao_id: apolice?.tabela_comissao_id ?? '',
+    // Datas chegam como "AAAA-MM-DDT00:00:00.000Z"; o input date espera "AAAA-MM-DD"
+    data_inicio_vigencia: apolice?.data_inicio_vigencia ? String(apolice.data_inicio_vigencia).slice(0, 10) : '',
+    data_fim_vigencia: apolice?.data_fim_vigencia ? String(apolice.data_fim_vigencia).slice(0, 10) : '',
+    dia_vencimento: apolice?.dia_vencimento ?? '',
+    observacoes: apolice?.observacoes ?? '',
   });
 
   const [errors, setErrors] = useState({});
@@ -39,7 +45,8 @@ const ApoliceForm = ({
   // Tabelas de comissão da seguradora escolhida
   const [tabelas, setTabelas] = useState([]);
   useEffect(() => {
-    if (!formData.seguradora_id) {
+    // Pós-venda não vê tabelas de comissão
+    if (!formData.seguradora_id || modoOperacional) {
       setTabelas([]);
       return;
     }
@@ -51,7 +58,7 @@ const ApoliceForm = ({
     return () => {
       ativo = false;
     };
-  }, [formData.seguradora_id]);
+  }, [formData.seguradora_id, modoOperacional]);
 
   // Ativas, mais a atual da apólice mesmo que tenha sido inativada
   const tabelasDisponiveis = tabelas.filter(
@@ -101,7 +108,7 @@ const ApoliceForm = ({
     }
 
     // Sem tabela de comissão, o percentual fixo é obrigatório
-    if (!formData.tabela_comissao_id && !validateRequired(formData.percentual_comissao)) {
+    if (!modoOperacional && !formData.tabela_comissao_id && !validateRequired(formData.percentual_comissao)) {
       newErrors.percentual_comissao = 'Informe o percentual ou escolha uma tabela de comissão';
     }
 
@@ -155,7 +162,7 @@ const ApoliceForm = ({
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
               errors.cliente_id ? 'border-red-500' : 'border-gray-300'
             }`}
-            disabled={loading}
+            disabled={loading || modoOperacional}
           >
             <option value="">Selecione...</option>
             {clientes.map(c => (
@@ -176,7 +183,7 @@ const ApoliceForm = ({
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
               errors.seguradora_id ? 'border-red-500' : 'border-gray-300'
             }`}
-            disabled={loading}
+            disabled={loading || modoOperacional}
           >
             <option value="">Selecione...</option>
             {seguradoras.map(s => (
@@ -195,7 +202,7 @@ const ApoliceForm = ({
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
             errors.corretor_responsavel_id ? 'border-red-500' : 'border-gray-300'
           }`}
-          disabled={loading}
+          disabled={loading || modoOperacional}
         >
           <option value="">Selecione...</option>
           {corretores.map(c => (
@@ -226,7 +233,7 @@ const ApoliceForm = ({
             value={formData.tipo_seguro}
             onChange={(e) => handleChange('tipo_seguro', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            disabled={loading}
+            disabled={loading || modoOperacional}
           >
             <option value={TIPO_SEGURO.SAUDE}>Saúde</option>
             <option value={TIPO_SEGURO.VIDA}>Vida</option>
@@ -248,12 +255,12 @@ const ApoliceForm = ({
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
               errors.valor_premio_mensal ? 'border-red-500' : 'border-gray-300'
             }`}
-            disabled={loading}
+            disabled={loading || modoOperacional}
           />
           {errors.valor_premio_mensal && <p className="mt-1 text-sm text-red-600">{errors.valor_premio_mensal}</p>}
         </div>
 
-        <div>
+        <div className={modoOperacional ? 'hidden' : ''}>
           <label className="block text-sm font-medium text-gray-700 mb-1">Regra de comissão *</label>
           <select
             value={formData.tabela_comissao_id}
@@ -274,7 +281,7 @@ const ApoliceForm = ({
         </div>
       </div>
 
-      {!formData.tabela_comissao_id && (
+      {!modoOperacional && !formData.tabela_comissao_id && (
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Comissão fixa (%) *</label>
@@ -294,9 +301,16 @@ const ApoliceForm = ({
         </div>
       )}
 
-      {tabelaEscolhida && <p className="text-sm text-gray-700">{resumoTabela(tabelaEscolhida)}</p>}
+      {!modoOperacional && tabelaEscolhida && <p className="text-sm text-gray-700">{resumoTabela(tabelaEscolhida)}</p>}
 
-      {previsao.length > 0 && mensalidade > 0 && (
+      {modoOperacional && (
+        <p className="text-xs text-gray-500">
+          Você pode alterar número, status, vigência, vencimento e observações. Cliente, seguradora, corretor, valor e
+          comissão são alterados pela gestão.
+        </p>
+      )}
+
+      {!modoOperacional && previsao.length > 0 && mensalidade > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
           <div className="font-semibold mb-2">Previsão de comissão</div>
           <ul className="space-y-1">

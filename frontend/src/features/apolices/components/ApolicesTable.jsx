@@ -2,7 +2,9 @@ import React from 'react';
 import { formatCurrency } from '../../../utils/formatters';
 import Spinner from '../../../components/common/Spinner/Spinner';
 
-const ApolicesTable = ({ apolices, loading, onEdit, onDelete }) => {
+// onEdit/onDelete nulos escondem as ações; verComissao=false esconde a coluna de comissão
+const ApolicesTable = ({ apolices, loading, onEdit, onDelete, verComissao = true }) => {
+  const temAcoes = Boolean(onEdit || onDelete);
   if (loading) return <Spinner />;
 
   if (apolices.length === 0) {
@@ -37,9 +39,9 @@ const ApolicesTable = ({ apolices, loading, onEdit, onDelete }) => {
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Seguradora</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tipo</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prêmio</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comissão</th>
+            {verComissao && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comissão</th>}
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ações</th>
+            {temAcoes && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ações</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200">
@@ -54,22 +56,32 @@ const ApolicesTable = ({ apolices, loading, onEdit, onDelete }) => {
                 </span>
               </td>
               <td className="px-4 py-3 text-sm text-gray-800">{formatCurrency(apolice.valor_premio_mensal)}</td>
-              <td className="px-4 py-3 text-sm text-green-600 font-medium">{apolice.percentual_comissao}%</td>
+              {verComissao && (
+                <td className="px-4 py-3 text-sm text-green-600 font-medium">
+                  {apolice.tabela_comissao_nome ? `Tabela: ${apolice.tabela_comissao_nome}` : `${apolice.percentual_comissao}%`}
+                </td>
+              )}
               <td className="px-4 py-3 text-sm">{getStatusBadge(apolice.status)}</td>
-              <td className="px-4 py-3 text-sm">
-                <button
-                  onClick={() => onEdit(apolice)}
-                  className="text-blue-600 hover:text-blue-800 mr-3 font-medium"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => onDelete(apolice.id)}
-                  className="text-red-600 hover:text-red-800 font-medium"
-                >
-                  Excluir
-                </button>
-              </td>
+              {temAcoes && (
+                <td className="px-4 py-3 text-sm">
+                  {onEdit && (
+                    <button
+                      onClick={() => onEdit(apolice)}
+                      className="text-blue-600 hover:text-blue-800 mr-3 font-medium"
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(apolice.id)}
+                      className="text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Excluir
+                    </button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -8,12 +8,13 @@ import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
 import Card from '../../components/common/Card/Card';
 import { useModal } from '../../hooks/useModal';
-// ADICIONAR ESTES IMPORTS
+import { useAuth } from '../../context/AuthContext';
 import { corretoresService } from '../../api/services/corretores.service';
 import { seguradorasService } from '../../api/services/seguradoras.service';
 import { clientesService } from '../../api/services/clientes.service';
 
 const Apolices = () => {
+  const { pode } = useAuth();
   const { apolices, loading, error, createApolice, updateApolice, deleteApolice, refresh } = useApolices();
   const { isOpen, modalData, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState(null);
@@ -33,18 +34,14 @@ const Apolices = () => {
   const loadFormData = async () => {
     setLoadingFormData(true);
     try {
+      // Admin/Gestor recebem o cadastro completo de corretores (o percentual alimenta a prévia do
+      // repasse); os demais perfis, só as opções. Quem não vê seguradoras recebe lista vazia.
       const [corretoresData, seguradorasData, clientesData] = await Promise.all([
-        corretoresService.getAll(),
-        seguradorasService.getAll(),
+        pode('corretores.ver') ? corretoresService.getAll() : corretoresService.getOpcoes(),
+        pode('seguradoras.ver') ? seguradorasService.getAll() : Promise.resolve([]),
         clientesService.getAll(),
       ]);
-      
-      console.log('Dados carregados:', {
-        corretores: corretoresData.length,
-        seguradoras: seguradorasData.length,
-        clientes: clientesData.length,
-      });
-      
+
       setCorretores(corretoresData);
       setSeguradoras(seguradorasData);
       setClientes(clientesData);
@@ -102,9 +99,11 @@ const Apolices = () => {
             <Button variant="secondary" icon={RefreshCw} onClick={refresh} disabled={loading} loading={loading}>
               Atualizar
             </Button>
-            <Button variant="primary" icon={Plus} onClick={() => openModal(null)}>
-              Nova Apólice
-            </Button>
+            {pode('apolices.criar') && (
+              <Button variant="primary" icon={Plus} onClick={() => openModal(null)}>
+                Nova Apólice
+              </Button>
+            )}
           </>
         }
       >
@@ -119,11 +118,16 @@ const Apolices = () => {
       </Card>
 
       <Card>
-        <ApolicesTable apolices={apolices} loading={loading} onEdit={openModal} onDelete={handleDelete} />
+        <ApolicesTable
+          apolices={apolices}
+          loading={loading}
+          onEdit={pode('apolices.editar') ? openModal : null}
+          onDelete={pode('apolices.excluir') ? handleDelete : null}
+          verComissao={pode('apolices.ver_comissao')}
+        />
       </Card>
 
       <Modal isOpen={isOpen} onClose={closeModal} title={modalData ? 'Editar Apólice' : 'Nova Apólice'} size="lg">
-        {/* IMPORTANTE: PASSAR AS PROPS */}
         <ApoliceForm
           apolice={modalData}
           onSubmit={handleSubmit}
@@ -132,6 +136,8 @@ const Apolices = () => {
           corretores={corretores}
           seguradoras={seguradoras}
           clientes={clientes}
+          // Sem permissão de ver comissão (pós-venda): só campos operacionais
+          modoOperacional={!pode('apolices.ver_comissao')}
         />
       </Modal>
     </div>

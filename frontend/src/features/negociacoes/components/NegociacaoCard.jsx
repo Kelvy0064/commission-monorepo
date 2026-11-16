@@ -21,6 +21,7 @@ const NegociacaoCard = ({
   onDragEnd,
   dragging,
   selectionMode = false,
+  podeArrastar = true,
   selected = false,
   onToggleSelect,
 }) => {
@@ -46,7 +47,7 @@ const NegociacaoCard = ({
           activate();
         }
       }}
-      draggable={!selectionMode}
+      draggable={podeArrastar && !selectionMode}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(negociacao.id));
@@ -55,7 +56,7 @@ const NegociacaoCard = ({
       onDragEnd={onDragEnd}
       onClick={activate}
       className={`w-full text-left rounded-lg border p-3 shadow-sm hover:shadow-md transition focus:outline-none focus:ring-2 focus:ring-blue-500 ${stateClasses} ${
-        selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+        selectionMode || !podeArrastar ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
       } ${dragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1.5">

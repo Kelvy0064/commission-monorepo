@@ -18,12 +18,21 @@ async function ensureAdmin() {
     return;
   }
 
+  // Admin da empresa indicada em ADMIN_EMPRESA_CODIGO (padrão: empresa piloto NEVITTA)
+  const codigo = (process.env.ADMIN_EMPRESA_CODIGO || 'NEVITTA').trim().toUpperCase();
+  const empresa = await pool.query('SELECT id FROM empresas WHERE codigo = $1', [codigo]);
+  if (empresa.rows.length === 0) {
+    console.warn(`⚠️  Empresa ${codigo} não encontrada — usuário admin não criado`);
+    return;
+  }
+
   const hash = await bcrypt.hash(senha, 10);
   await pool.query(
-    `INSERT INTO usuarios (nome, email, senha_hash, role) VALUES ($1, $2, $3, 'admin')`,
-    [process.env.ADMIN_NOME || 'Administrador', email, hash]
+    `INSERT INTO usuarios (nome, email, senha_hash, role, status, empresa_id)
+     VALUES ($1, $2, $3, 'admin', 'ativo', $4)`,
+    [process.env.ADMIN_NOME || 'Administrador', email, hash, empresa.rows[0].id]
   );
-  console.log(`✅ Usuário admin criado: ${email}`);
+  console.log(`✅ Usuário admin criado: ${email} (${codigo})`);
 }
 
 // Executa todos os arquivos .sql desta pasta em ordem alfabética (001_, 002_, ...).

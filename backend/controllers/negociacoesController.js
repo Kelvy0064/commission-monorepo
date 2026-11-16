@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { escopoCorretor } = require('../utils/permissoes');
 
 const ETAPAS = [
   'sem_contato',
@@ -80,14 +81,38 @@ const fetchById = async (id) => {
   return result.rows[0];
 };
 
+// Cliente e corretor precisam ser da empresa; para o perfil corretor, o cliente precisa ser dele.
+// Retorna mensagem de erro ou null.
+const validarVinculos = async (fields, empresaId, escopo) => {
+  const cliente = await pool.query('SELECT corretor_id FROM clientes WHERE id = $1 AND empresa_id = $2', [
+    fields.cliente_id,
+    empresaId,
+  ]);
+  if (cliente.rows.length === 0) return 'Cliente não encontrado';
+  if (escopo !== null && cliente.rows[0].corretor_id !== escopo) return 'Cliente não encontrado';
+
+  if (fields.corretor_id) {
+    const corretor = await pool.query('SELECT 1 FROM corretores WHERE id = $1 AND empresa_id = $2', [
+      fields.corretor_id,
+      empresaId,
+    ]);
+    if (corretor.rows.length === 0) return 'Corretor não encontrado';
+  }
+  return null;
+};
+
+// Para o perfil corretor, a negociação é sempre dele
+const comEscopo = (body, escopo) => (escopo !== null ? { ...body, corretor_id: escopo } : body);
+
 const negociacoesController = {
   // GET /negociacoes?status=em_andamento&corretor_id=1|sem&busca=texto
   // Ordena pela próxima ação (atrasadas primeiro); sem próxima ação vão para o fim.
+  // Corretor só vê as próprias (filtro de corretor é ignorado).
   async index(req, res) {
     try {
       const { status, corretor_id, busca } = req.query;
-      const conditions = [];
-      const params = [];
+      const params = [req.user.empresa_id];
+      const conditions = ['n.empresa_id = $1'];
 
       if (status) {
         if (!STATUS.includes(status)) return res.status(400).json({ error: 'Status inválido' });
@@ -95,7 +120,11 @@ const negociacoesController = {
         conditions.push(`n.status = $${params.length}`);
       }
 
-      if (corretor_id === 'sem') {
+      const escopo = escopoCorretor(req);
+      if (escopo !== null) {
+        params.push(escopo);
+        conditions.push(`n.corretor_id = $${params.length}`);
+      } else if (corretor_id === 'sem') {
         conditions.push('n.corretor_id IS NULL');
       } else if (corretor_id) {
         const id = parseId(corretor_id);
@@ -111,7 +140,7 @@ const negociacoesController = {
         conditions.push(`(c.nome ILIKE ${p} OR n.titulo ILIKE ${p} OR n.proxima_acao ILIKE ${p})`);
       }
 
-      const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+      const where = ` WHERE ${conditions.join(' AND ')}`;
       const result = await pool.query(
         `${SELECT_NEGOCIACOES}${where}
          ORDER BY n.proxima_acao_em ASC NULLS LAST, n.created_at ASC`,
@@ -126,15 +155,19 @@ const negociacoesController = {
 
   async create(req, res) {
     try {
-      const parsed = parseBody(req.body);
+      const escopo = escopoCorretor(req);
+      const parsed = parseBody(comEscopo(req.body, escopo));
       if (parsed.error) return res.status(400).json({ error: parsed.error });
+      const erroVinculo = await validarVinculos(parsed.fields, req.user.empresa_id, escopo);
+      if (erroVinculo) return res.status(400).json({ error: erroVinculo });
 
-      const columns = Object.keys(parsed.fields);
+      const values = { ...parsed.fields, empresa_id: req.user.empresa_id };
+      const columns = Object.keys(values);
       const result = await pool.query(
         `INSERT INTO negociacoes (${columns.join(', ')})
          VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')})
          RETURNING id`,
-        Object.values(parsed.fields)
+        Object.values(values)
       );
       res.status(201).json(await fetchById(result.rows[0].id));
     } catch (error) {
@@ -148,17 +181,21 @@ const negociacoesController = {
 
   async update(req, res) {
     try {
-      const parsed = parseBody(req.body);
+      const escopo = escopoCorretor(req);
+      const parsed = parseBody(comEscopo(req.body, escopo));
       if (parsed.error) return res.status(400).json({ error: parsed.error });
+      const erroVinculo = await validarVinculos(parsed.fields, req.user.empresa_id, escopo);
+      if (erroVinculo) return res.status(400).json({ error: erroVinculo });
 
       const entries = Object.entries(parsed.fields);
       const sets = entries.map(([column], i) => `${column} = $${i + 1}`);
+      const n = entries.length;
       const result = await pool.query(
         `UPDATE negociacoes
          SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $${entries.length + 1}
+         WHERE id = $${n + 1} AND empresa_id = $${n + 2} AND ($${n + 3}::int IS NULL OR corretor_id = $${n + 3})
          RETURNING id`,
-        [...entries.map(([, value]) => value), req.params.id]
+        [...entries.map(([, value]) => value), req.params.id, req.user.empresa_id, escopo]
       );
 
       if (result.rows.length === 0) {
@@ -182,8 +219,8 @@ const negociacoesController = {
 
       const result = await pool.query(
         `UPDATE negociacoes SET etapa = $1, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2 RETURNING id`,
-        [etapa, req.params.id]
+         WHERE id = $2 AND empresa_id = $3 AND ($4::int IS NULL OR corretor_id = $4) RETURNING id`,
+        [etapa, req.params.id, req.user.empresa_id, escopoCorretor(req)]
       );
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Negociação não encontrada' });
@@ -214,7 +251,10 @@ const negociacoesController = {
 
     const db = await pool.connect();
     try {
-      const corretores = await db.query('SELECT id FROM corretores WHERE id = ANY($1)', [corretorIds]);
+      const corretores = await db.query('SELECT id FROM corretores WHERE id = ANY($1) AND empresa_id = $2', [
+        corretorIds,
+        req.user.empresa_id,
+      ]);
       if (corretores.rows.length !== corretorIds.length) {
         return res.status(400).json({ error: 'Corretor não encontrado' });
       }
@@ -227,9 +267,9 @@ const negociacoesController = {
         `UPDATE negociacoes n
          SET corretor_id = a.corretor_id, updated_at = CURRENT_TIMESTAMP
          FROM unnest($1::int[], $2::int[]) AS a(negociacao_id, corretor_id)
-         WHERE n.id = a.negociacao_id
+         WHERE n.id = a.negociacao_id AND n.empresa_id = $3
          RETURNING n.id, n.cliente_id, n.corretor_id`,
-        [atribuicoes.map(([n]) => n), atribuicoes.map(([, c]) => c)]
+        [atribuicoes.map(([n]) => n), atribuicoes.map(([, c]) => c), req.user.empresa_id]
       );
 
       // Clientes sem corretor recebem o corretor da negociação
@@ -237,8 +277,8 @@ const negociacoesController = {
         `UPDATE clientes c
          SET corretor_id = a.corretor_id, updated_at = CURRENT_TIMESTAMP
          FROM unnest($1::int[], $2::int[]) AS a(cliente_id, corretor_id)
-         WHERE c.id = a.cliente_id AND c.corretor_id IS NULL`,
-        [atualizadas.rows.map((r) => r.cliente_id), atualizadas.rows.map((r) => r.corretor_id)]
+         WHERE c.id = a.cliente_id AND c.corretor_id IS NULL AND c.empresa_id = $3`,
+        [atualizadas.rows.map((r) => r.cliente_id), atualizadas.rows.map((r) => r.corretor_id), req.user.empresa_id]
       );
       await db.query('COMMIT');
 
@@ -257,7 +297,10 @@ const negociacoesController = {
 
   async delete(req, res) {
     try {
-      const result = await pool.query('DELETE FROM negociacoes WHERE id = $1 RETURNING id', [req.params.id]);
+      const result = await pool.query('DELETE FROM negociacoes WHERE id = $1 AND empresa_id = $2 RETURNING id', [
+        req.params.id,
+        req.user.empresa_id,
+      ]);
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Negociação não encontrada' });
       }

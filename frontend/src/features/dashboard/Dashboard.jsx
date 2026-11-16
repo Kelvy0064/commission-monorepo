@@ -10,8 +10,11 @@ import Spinner from '../../components/common/Spinner/Spinner';
 import { formatCurrency } from '../../utils/formatters';
 import { comissoesService } from '../../api/services/comissoes.service';
 import { repassesService } from '../../api/services/repasses.service';
+import { useAuth } from '../../context/AuthContext';
+import DashboardCorretor from './components/DashboardCorretor';
 
-const Dashboard = () => {
+// Dashboard da empresa (Administrador e Gestor)
+const DashboardEmpresa = () => {
   const { kpis, proximasComissoes, loading, error, refresh } = useDashboard();
   const [alert, setAlert] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -149,6 +152,12 @@ const Dashboard = () => {
       </div>
     </div>
   );
+};
+
+// Corretor vê só os próprios números (a API devolve { tipo: 'corretor', ... })
+const Dashboard = () => {
+  const { user } = useAuth();
+  return user?.role === 'corretor' ? <DashboardCorretor /> : <DashboardEmpresa />;
 };
 
 export default Dashboard;

@@ -2,7 +2,15 @@ import React from 'react';
 import Spinner from '../../../components/common/Spinner/Spinner';
 import { formatDate } from '../../../utils/formatters';
 
-const ClientesTable = ({ clientes, loading, emptyMessage = 'Nenhum cliente cadastrado', onEdit, onDelete }) => {
+const ClientesTable = ({
+  clientes,
+  loading,
+  emptyMessage = 'Nenhum cliente cadastrado',
+  onEdit,
+  onDelete,
+  podeEditar = true,
+  podeExcluir = true,
+}) => {
   // Spinner só no primeiro carregamento; ao paginar/filtrar mantém a tabela visível
   if (loading && clientes.length === 0) return <Spinner />;
 
@@ -63,14 +71,16 @@ const ClientesTable = ({ clientes, loading, emptyMessage = 'Nenhum cliente cadas
                   onClick={() => onEdit(cliente)}
                   className="text-blue-600 hover:text-blue-800 mr-3 font-medium"
                 >
-                  Editar
+                  {podeEditar ? 'Editar' : 'Ver'}
                 </button>
-                <button
-                  onClick={() => onDelete(cliente.id)}
-                  className="text-red-600 hover:text-red-800 font-medium"
-                >
-                  Excluir
-                </button>
+                {podeExcluir && (
+                  <button
+                    onClick={() => onDelete(cliente.id)}
+                    className="text-red-600 hover:text-red-800 font-medium"
+                  >
+                    Excluir
+                  </button>
+                )}
               </td>
             </tr>
           ))}

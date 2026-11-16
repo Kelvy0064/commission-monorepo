@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import MainLayout from './layouts/MainLayout/MainLayout';
 import AppRoutes from './routes';
 import Login from './features/auth/Login';
+import Cadastro from './features/auth/Cadastro';
 import Spinner from './components/common/Spinner/Spinner';
 
 // Sem login: só a tela de login. Com login: o sistema (dados só carregam depois de autenticar).
@@ -24,6 +25,7 @@ const AppShell = () => {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/cadastro" element={<Cadastro />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -32,7 +34,7 @@ const AppShell = () => {
   return (
     <DataProvider>
       <MainLayout>
-        {/* /login e rotas desconhecidas redirecionam para o dashboard */}
+        {/* /login e rotas sem permissão redirecionam para a primeira página permitida */}
         <AppRoutes />
       </MainLayout>
     </DataProvider>

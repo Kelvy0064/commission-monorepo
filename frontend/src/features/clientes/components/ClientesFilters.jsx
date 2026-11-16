@@ -2,16 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { corretoresService } from '../../../api/services/corretores.service';
 import { STATUS } from '../../../utils/constants';
+import { useAuth } from '../../../context/AuthContext';
 
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm';
 
 const ClientesFilters = ({ filtros, onChange, onClear }) => {
+  const { user } = useAuth();
+  const ehCorretor = user?.role === 'corretor';
   const [corretores, setCorretores] = useState([]);
 
   useEffect(() => {
     corretoresService
-      .getAll()
+      .getOpcoes()
       .then(setCorretores)
       .catch(() => setCorretores([]));
   }, []);
@@ -34,22 +37,25 @@ const ClientesFilters = ({ filtros, onChange, onClear }) => {
         </div>
       </div>
 
-      <div className="md:col-span-3">
-        <label className="block text-xs font-medium text-gray-600 mb-1">Corretor</label>
-        <select
-          value={filtros.corretor_id}
-          onChange={(e) => onChange('corretor_id', e.target.value)}
-          className={inputClass}
-        >
-          <option value="">Todos</option>
-          <option value="sem">Sem corretor</option>
-          {corretores.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Corretor só vê os próprios clientes: filtro por corretor não se aplica */}
+      {!ehCorretor && (
+        <div className="md:col-span-3">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Corretor</label>
+          <select
+            value={filtros.corretor_id}
+            onChange={(e) => onChange('corretor_id', e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Todos</option>
+            <option value="sem">Sem corretor</option>
+            {corretores.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="md:col-span-2">
         <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>

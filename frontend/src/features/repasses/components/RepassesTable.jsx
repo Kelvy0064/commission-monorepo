@@ -55,13 +55,15 @@ const RepassesTable = ({ repasses, loading, onMarcarPago }) => {
                   <span className="text-gray-400 text-xs">
                     Pago em {formatDate(repasse.data_pagamento_real)}
                   </span>
-                ) : (
+                ) : onMarcarPago ? (
                   <button
                     onClick={() => onMarcarPago(repasse.id)}
                     className="text-blue-600 hover:text-blue-800 font-medium"
                   >
                     Marcar Pago
                   </button>
+                ) : (
+                  <span className="text-gray-400 text-xs">Aguardando pagamento</span>
                 )}
               </td>
             </tr>

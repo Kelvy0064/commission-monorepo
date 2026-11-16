@@ -10,7 +10,8 @@ export const PERFIS = {
 
 const TODOS = Object.keys(PERFIS);
 
-const PERMISSOES = {
+// Exportada para o teste de paridade com o backend (frontend/tests/permissoes.test.js)
+export const PERMISSOES = {
   'dashboard.ver': ['admin', 'gestor', 'corretor'],
 
   'clientes.ver': TODOS,

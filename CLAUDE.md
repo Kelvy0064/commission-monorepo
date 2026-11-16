@@ -4,6 +4,11 @@ Sistema de controle de comissões de uma corretora de planos de saúde: leads, c
 negociações (kanban), seguradoras e suas regras de comissão, apólices, comissões e repasses
 aos corretores. Tudo em português (pt-BR): código de domínio, mensagens, UI e conversa com o usuário.
 
+**Desenvolvimento orientado a specs (SDD):** as regras inegociáveis estão em
+[`specs/constitution.md`](specs/constitution.md) (em conflito, ela prevalece sobre este arquivo) e o
+processo em [`specs/README.md`](specs/README.md): toda mudança nasce de uma spec aprovada, cada critério
+de aceite (`CA-xx`) tem teste automatizado, e a entrada na `main` é por pull request com CI verde.
+
 ## Como trabalhar com o usuário
 
 - Responda em **pt-BR**.
@@ -244,12 +249,26 @@ API_TOKEN=<token> node scripts/importar-leads.js "<arquivo>" --api <URL da API> 
   arquivos de carga e backups locais).
 - Não coloque nomes, telefones, e-mails ou tokens em commits, logs, CLAUDE.md ou serviços externos.
 
-## Como testar (não há suíte de testes automatizados)
+## Como testar
 
-- Front: `cd frontend && npm run build` (o ESLint do projeto está quebrado: `eslint.config.js` é do
-  ESLint 9, mas o instalado é o 8 — problema pré-existente).
-- Back: suba um **PostgreSQL descartável** e rode a API de verdade contra ele. No Windows deste
-  projeto há PostgreSQL 18 em `C:\Program Files\PostgreSQL\18\bin`:
+- **Backend: `cd backend && npm test`** (`tests/run.js`). Cria um PostgreSQL descartável (local: `initdb`
+  do PostgreSQL instalado, achado em `PG_BIN`, no `PATH` ou em `C:\Program Files\PostgreSQL\*\bin`;
+  CI: servidor em `TEST_DB_HOST`/`TEST_DB_PORT`/`TEST_DB_USER`/`TEST_DB_PASSWORD`), aplica as migrations
+  **duas vezes** (falha se não forem idempotentes), sobe a API em UTC numa porta livre e roda
+  `tests/**/*.test.js` com `node:test`. Apaga tudo no final (`KEEP_DB=1` mantém).
+  `npm run test:unit` roda só os testes sem banco. Um arquivo: `npm test -- tests/integration/x.test.js`.
+  - Helpers em `tests/helpers/contexto.js`: `api()`, `criarEmpresa/criarUsuario/criarCorretor` (direto
+    no banco) e `tokenDe(id)` — gere tokens assim; o login tem limite de 10 tentativas/15 min por IP.
+  - `tests/integration/permissoes-rotas.test.js` falha se uma rota nova não for declarada na tabela de
+    rotas × permissões dele.
+- **Frontend: `cd frontend && npm test`** (funções puras e paridade da matriz de permissões com o
+  backend) e `npm run build` (o ESLint do projeto está quebrado: `eslint.config.js` é do ESLint 9, mas
+  o instalado é o 8 — problema pré-existente).
+- **CI:** `.github/workflows/ci.yml` roda os dois a cada push e pull request.
+- Testes usam só dados fictícios (`@teste.local`). Critérios de aceite levam o id no nome do teste
+  (`001/CA-07: ...`).
+- Teste manual (exploratório), se precisar: suba um **PostgreSQL descartável** e rode a API de verdade
+  contra ele. No Windows deste projeto há PostgreSQL 18 em `C:\Program Files\PostgreSQL\18\bin`:
   ```bash
   initdb -D <pasta-temp> -U postgres -A trust -E UTF8
   pg_ctl -D <pasta-temp> -o "-p 5499" -w start && createdb -h localhost -p 5499 -U postgres commission_test
@@ -274,6 +293,8 @@ API_TOKEN=<token> node scripts/importar-leads.js "<arquivo>" --api <URL da API> 
 3. Estorno e vigência das tabelas não são aplicados no cálculo.
 4. `repassesController.relatorioPorCorretor` não está roteado nem filtra por empresa.
 5. CORS: se a landing page enviar leads direto do navegador, o domínio dela precisa estar em `CORS_ORIGIN`.
+6. `valorComissao` (`utils/comissaoParcela.js`) erra 1 centavo em casos de meio centavo por ponto
+   flutuante (16,65 × 30% = 4,995 → 4,99). Registrado como teste `todo`; corrigir exige decisão do usuário.
 
 ## Ideias para depois (combinadas com o usuário, ainda não iniciadas)
 

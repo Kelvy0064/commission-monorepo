@@ -3,6 +3,9 @@ import Button from '../../common/Button/Button';
 import { validateRequired } from '../../../utils/validators';
 import { TIPO_SEGURO } from '../../../utils/constants';
 import { useData } from '../../../context/DataContext';
+import { seguradorasService } from '../../../api/services/seguradoras.service';
+import { cronograma, fmtPct, resumoTabela, modalidadeLabel } from '../../../features/seguradoras/comissao';
+import { formatCurrency } from '../../../utils/formatters';
 
 const ApoliceForm = ({ 
   apolice, 
@@ -28,19 +31,44 @@ const ApoliceForm = ({
     status: 'ativa',
     observacoes: '',
     ...apolice,
+    tabela_comissao_id: apolice?.tabela_comissao_id ?? '',
   });
 
   const [errors, setErrors] = useState({});
-  const [comissaoCalculada, setComissaoCalculada] = useState(0);
 
+  // Tabelas de comissão da seguradora escolhida
+  const [tabelas, setTabelas] = useState([]);
   useEffect(() => {
-    if (formData.valor_premio_mensal && formData.percentual_comissao) {
-      const valor = (formData.valor_premio_mensal * formData.percentual_comissao) / 100;
-      setComissaoCalculada(valor);
-    } else {
-      setComissaoCalculada(0);
+    if (!formData.seguradora_id) {
+      setTabelas([]);
+      return;
     }
-  }, [formData.valor_premio_mensal, formData.percentual_comissao]);
+    let ativo = true;
+    seguradorasService
+      .getTabelas(formData.seguradora_id)
+      .then((data) => ativo && setTabelas(data))
+      .catch(() => ativo && setTabelas([]));
+    return () => {
+      ativo = false;
+    };
+  }, [formData.seguradora_id]);
+
+  // Ativas, mais a atual da apólice mesmo que tenha sido inativada
+  const tabelasDisponiveis = tabelas.filter(
+    (t) => t.ativa || String(t.id) === String(formData.tabela_comissao_id)
+  );
+  const tabelaEscolhida = tabelas.find((t) => String(t.id) === String(formData.tabela_comissao_id)) || null;
+
+  // Previsão: parcelas da tabela (ou percentual fixo) e o repasse do corretor na 1ª parcela
+  const mensalidade = Number(formData.valor_premio_mensal) || 0;
+  const previsao = tabelaEscolhida
+    ? cronograma(tabelaEscolhida, mensalidade, 2)
+    : formData.percentual_comissao !== '' && mensalidade
+      ? [{ parcela: 1, tipo: 'Fixa (todo mês)', percentual: Number(formData.percentual_comissao), valor: (mensalidade * Number(formData.percentual_comissao)) / 100 }]
+      : [];
+  const corretor = corretores.find((c) => String(c.id) === String(formData.corretor_responsavel_id));
+  const repasseCorretor =
+    corretor && previsao[0] ? (previsao[0].valor * Number(corretor.percentual_comissao)) / 100 : null;
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -72,8 +100,9 @@ const ApoliceForm = ({
       newErrors.valor_premio_mensal = 'Valor do prêmio é obrigatório';
     }
 
-    if (!validateRequired(formData.percentual_comissao)) {
-      newErrors.percentual_comissao = 'Percentual de comissão é obrigatório';
+    // Sem tabela de comissão, o percentual fixo é obrigatório
+    if (!formData.tabela_comissao_id && !validateRequired(formData.percentual_comissao)) {
+      newErrors.percentual_comissao = 'Informe o percentual ou escolha uma tabela de comissão';
     }
 
     if (!validateRequired(formData.data_inicio_vigencia)) {
@@ -95,7 +124,8 @@ const ApoliceForm = ({
         seguradora_id: parseInt(formData.seguradora_id),
         corretor_responsavel_id: parseInt(formData.corretor_responsavel_id),
         valor_premio_mensal: parseFloat(formData.valor_premio_mensal),
-        percentual_comissao: parseFloat(formData.percentual_comissao),
+        tabela_comissao_id: formData.tabela_comissao_id ? parseInt(formData.tabela_comissao_id) : null,
+        percentual_comissao: formData.tabela_comissao_id ? null : parseFloat(formData.percentual_comissao),
         dia_vencimento: formData.dia_vencimento === '' || formData.dia_vencimento === null 
           ? null 
           : parseInt(formData.dia_vencimento),
@@ -139,7 +169,10 @@ const ApoliceForm = ({
           <label className="block text-sm font-medium text-gray-700 mb-1">Seguradora *</label>
           <select
             value={formData.seguradora_id}
-            onChange={(e) => handleChange('seguradora_id', e.target.value)}
+            onChange={(e) => {
+              handleChange('seguradora_id', e.target.value);
+              handleChange('tabela_comissao_id', ''); // tabela pertence à seguradora anterior
+            }}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
               errors.seguradora_id ? 'border-red-500' : 'border-gray-300'
             }`}
@@ -221,27 +254,70 @@ const ApoliceForm = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Comissão (%) *</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.percentual_comissao}
-            onChange={(e) => handleChange('percentual_comissao', e.target.value)}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-              errors.percentual_comissao ? 'border-red-500' : 'border-gray-300'
-            }`}
-            disabled={loading}
-          />
-          {errors.percentual_comissao && <p className="mt-1 text-sm text-red-600">{errors.percentual_comissao}</p>}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Regra de comissão *</label>
+          <select
+            value={formData.tabela_comissao_id}
+            onChange={(e) => handleChange('tabela_comissao_id', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            disabled={loading || !formData.seguradora_id}
+          >
+            <option value="">Percentual fixo (todo mês)</option>
+            {tabelasDisponiveis.map((t) => (
+              <option key={t.id} value={t.id}>
+                Tabela: {t.nome} ({modalidadeLabel(t.modalidade)}){t.ativa ? '' : ' — inativa'}
+              </option>
+            ))}
+          </select>
+          {formData.seguradora_id && tabelas.length === 0 && (
+            <p className="mt-1 text-xs text-gray-500">Esta seguradora ainda não tem tabelas de comissão.</p>
+          )}
         </div>
       </div>
 
-      {comissaoCalculada > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="text-sm text-blue-800 mb-1">Comissão Calculada:</div>
-          <div className="text-2xl font-bold text-blue-900">
-            R$ {comissaoCalculada.toFixed(2)}
+      {!formData.tabela_comissao_id && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Comissão fixa (%) *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.percentual_comissao ?? ''}
+              onChange={(e) => handleChange('percentual_comissao', e.target.value)}
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                errors.percentual_comissao ? 'border-red-500' : 'border-gray-300'
+              }`}
+              disabled={loading}
+            />
+            {errors.percentual_comissao && <p className="mt-1 text-sm text-red-600">{errors.percentual_comissao}</p>}
+          </div>
+        </div>
+      )}
+
+      {tabelaEscolhida && <p className="text-sm text-gray-700">{resumoTabela(tabelaEscolhida)}</p>}
+
+      {previsao.length > 0 && mensalidade > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
+          <div className="font-semibold mb-2">Previsão de comissão</div>
+          <ul className="space-y-1">
+            {previsao.map((l) => (
+              <li key={l.parcela} className="flex justify-between gap-2">
+                <span>
+                  {l.parcela}ª parcela — {l.tipo} {fmtPct(l.percentual)}
+                </span>
+                <span className="font-medium">{formatCurrency(l.valor)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 pt-3 border-t border-blue-200">
+            {corretor ? (
+              <span>
+                Repasse a {corretor.nome}: <strong>{formatCurrency(repasseCorretor)}</strong> ({fmtPct(corretor.percentual_comissao)}{' '}
+                da 1ª parcela, sobre o valor efetivamente recebido). As demais parcelas ficam com a corretora.
+              </span>
+            ) : (
+              <span>O corretor recebe repasse apenas da 1ª parcela.</span>
+            )}
           </div>
         </div>
       )}

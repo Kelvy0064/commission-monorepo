@@ -29,9 +29,10 @@ const parseBody = (body) => {
 
   if (!Array.isArray(body.percentuais_parcelas)) return { error: 'Informe os percentuais por parcela (lista)' };
   if (body.percentuais_parcelas.length > 24) return { error: 'Máximo de 24 parcelas de agenciamento' };
-  const percentuais = body.percentuais_parcelas.map((p) => optionalPercent(p, 1000));
+  // Limite = maior valor que cabe em DECIMAL(5,2) nas apólices/comissões
+  const percentuais = body.percentuais_parcelas.map((p) => optionalPercent(p, 999.99));
   if (percentuais.some((p) => p === null || p === undefined)) {
-    return { error: 'Percentual por parcela deve ser um número entre 0 e 1000' };
+    return { error: 'Percentual por parcela deve ser um número entre 0 e 999,99' };
   }
 
   const vitalicio = optionalPercent(body.vitalicio_percentual, 100);

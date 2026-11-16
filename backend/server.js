@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const routes = require('./routes');
 const pool = require('./config/database');
+const gerarComissoesMes = require('./jobs/gerarComissoesMes');
 
 const app = express();
 
@@ -64,52 +65,8 @@ cron.schedule('0 8 * * *', async () => {
 cron.schedule('0 0 1 * *', async () => {
   try {
     console.log('🔄 Gerando comissões do novo mês...');
-    
-    // Buscar todas as apólices ativas
-    const apolices = await pool.query(`
-      SELECT a.*, s.nome AS seguradora_nome, s.dia_pagamento, s.prazo_repasse_dias
-      FROM apolices a
-      JOIN seguradoras s ON a.seguradora_id = s.id
-      WHERE a.status = 'ativa'
-    `);
-
-    // Seguradoras sem dia de pagamento/prazo de repasse gerariam data prevista errada: pula e avisa
-    const incompletas = apolices.rows.filter((a) => a.dia_pagamento == null || a.prazo_repasse_dias == null);
-    if (incompletas.length) {
-      const nomes = [...new Set(incompletas.map((a) => a.seguradora_nome))].join(', ');
-      console.warn(`⚠️  ${incompletas.length} apólice(s) sem comissão gerada — cadastro incompleto: ${nomes}`);
-    }
-    apolices.rows = apolices.rows.filter((a) => a.dia_pagamento != null && a.prazo_repasse_dias != null);
-
-    const hoje = new Date();
-    const competencia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-
-    for (const apolice of apolices.rows) {
-      const dataPrevisao = new Date(hoje);
-      dataPrevisao.setDate(apolice.dia_pagamento);
-      dataPrevisao.setDate(dataPrevisao.getDate() + apolice.prazo_repasse_dias);
-
-      const valorComissao = (apolice.valor_premio_mensal * apolice.percentual_comissao) / 100;
-
-      // Verificar se já não existe comissão para esta competência
-      const existe = await pool.query(
-        'SELECT id FROM comissoes WHERE apolice_id = $1 AND competencia = $2',
-        [apolice.id, competencia]
-      );
-
-      if (existe.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO comissoes (apolice_id, corretor_id, competencia, valor_premio,
-                                  percentual_comissao, valor_comissao_bruto, valor_comissao_liquido,
-                                  data_previsao_recebimento, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'prevista')`,
-          [apolice.id, apolice.corretor_responsavel_id, competencia, apolice.valor_premio_mensal,
-           apolice.percentual_comissao, valorComissao, valorComissao, dataPrevisao.toISOString().split('T')[0]]
-        );
-      }
-    }
-    
-    console.log('✅ Comissões do novo mês geradas');
+    const { geradas, encerradas } = await gerarComissoesMes(new Date());
+    console.log(`✅ Comissões do novo mês geradas: ${geradas} (apólices com tabela encerrada: ${encerradas})`);
   } catch (error) {
     console.error('❌ Erro ao gerar comissões:', error);
   }

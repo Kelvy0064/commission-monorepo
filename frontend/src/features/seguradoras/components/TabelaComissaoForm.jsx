@@ -103,7 +103,7 @@ const TabelaComissaoForm = ({ tabela, onSubmit, onCancel, saving }) => {
               <input
                 type="number"
                 min="0"
-                max="1000"
+                max="999.99"
                 step="0.01"
                 value={p}
                 onChange={(e) => setParcela(i, e.target.value)}

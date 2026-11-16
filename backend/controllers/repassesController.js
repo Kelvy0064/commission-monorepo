@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { PARCELA_COM_REPASSE, valorComissao } = require('../utils/comissaoParcela');
 
 const repassesController = {
   // Listar repasses
@@ -39,27 +40,31 @@ const repassesController = {
     }
   },
 
-  // Gerar repasses automaticamente para comissões recebidas
+  // Gerar repasses automaticamente para comissões recebidas.
+  // Regra: o corretor recebe só da 1ª parcela da apólice — o percentual do cadastro dele
+  // sobre o valor que a corretora efetivamente recebeu (comissão líquida).
+  // Parcelas seguintes (2ª, vitalício...) ficam com a corretora.
   async gerarRepasses(req, res) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Buscar comissões recebidas sem repasse gerado
+      // Comissões recebidas da 1ª parcela, com corretor, ainda sem repasse
       const comissoes = await client.query(`
-        SELECT c.*, cor.percentual_comissao
+        SELECT c.*, cor.percentual_comissao AS percentual_corretor
         FROM comissoes c
-        LEFT JOIN corretores cor ON c.corretor_id = cor.id
+        JOIN corretores cor ON c.corretor_id = cor.id
         WHERE c.status = 'recebida'
+        AND c.numero_parcela = $1
         AND NOT EXISTS (
           SELECT 1 FROM repasses r WHERE r.comissao_id = c.id
         )
-      `);
+      `, [PARCELA_COM_REPASSE]);
 
       let repassesGerados = 0;
 
       for (const comissao of comissoes.rows) {
-        const valorRepasse = (comissao.valor_comissao_liquido * comissao.percentual_comissao) / 100;
+        const valorRepasse = valorComissao(comissao.valor_comissao_liquido, comissao.percentual_corretor);
         const dataPrevisao = new Date(comissao.data_recebimento_real);
         dataPrevisao.setDate(dataPrevisao.getDate() + 5); // 5 dias após recebimento
 
@@ -67,7 +72,7 @@ const repassesController = {
           `INSERT INTO repasses (comissao_id, corretor_destino_id, valor_repasse, percentual_repasse,
                                  data_previsao_pagamento, status)
            VALUES ($1, $2, $3, $4, $5, 'pendente')`,
-          [comissao.id, comissao.corretor_id, valorRepasse, comissao.percentual_comissao, 
+          [comissao.id, comissao.corretor_id, valorRepasse, comissao.percentual_corretor,
            dataPrevisao.toISOString().split('T')[0]]
         );
 

@@ -82,6 +82,12 @@ const TabelasComissaoModal = ({ seguradora, onClose, onChanged }) => {
         <Spinner />
       ) : (
         <div className="space-y-3">
+          <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            As apólices que usam uma tabela geram as comissões parcela a parcela por ela. O corretor recebe repasse
+            apenas da <strong>1ª parcela</strong> — o percentual do cadastro dele sobre o valor efetivamente recebido. As
+            demais parcelas ficam com a corretora.
+          </p>
+
           {tabelas.length === 0 && (
             <p className="text-sm text-gray-500 py-4">
               Nenhuma tabela cadastrada. Crie uma tabela para cada regra de comissão do contrato (por produto,

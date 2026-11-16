@@ -3,6 +3,8 @@ import { Check } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
 import Spinner from '../../../components/common/Spinner/Spinner';
 
+const TIPO_LABEL = { agenciamento: 'Agenciamento', vitalicio: 'Vitalício', fixa: 'Fixa' };
+
 const ComissoesTable = ({ comissoes, loading, onMarcarRecebida }) => {
   if (loading) return <Spinner />;
 
@@ -36,6 +38,7 @@ const ComissoesTable = ({ comissoes, loading, onMarcarRecebida }) => {
           <tr>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Competência</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Apólice</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Parcela</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Cliente</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Corretor</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Valor</th>
@@ -49,6 +52,15 @@ const ComissoesTable = ({ comissoes, loading, onMarcarRecebida }) => {
             <tr key={comissao.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 text-sm font-medium text-gray-800">{comissao.competencia}</td>
               <td className="px-4 py-3 text-sm text-gray-600">{comissao.numero_apolice}</td>
+              <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                {comissao.numero_parcela ? `${comissao.numero_parcela}ª` : '-'}
+                {comissao.tipo && <span className="text-gray-400"> · {TIPO_LABEL[comissao.tipo] || comissao.tipo}</span>}
+                {comissao.numero_parcela === 1 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs" title="Gera repasse ao corretor">
+                    repasse
+                  </span>
+                )}
+              </td>
               <td className="px-4 py-3 text-sm text-gray-800">{comissao.cliente_nome}</td>
               <td className="px-4 py-3 text-sm text-gray-600">{comissao.corretor_nome}</td>
               <td className="px-4 py-3 text-sm text-green-600 font-semibold">

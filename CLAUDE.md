@@ -18,6 +18,46 @@ aos corretores. Tudo em português (pt-BR): código de domínio, mensagens, UI e
   `https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/Relatorio_cadop.csv`.
 - Mudanças que alteram cálculo de dinheiro: confirme as regras de negócio com o usuário antes.
 
+## Contexto do negócio (estudo de 15/11/2026 — números agregados, revalidar antes de usar)
+
+**Quem é:** Nevitta Seguros, corretora de planos de saúde (empresa piloto do sistema). Promessa da marca:
+"O Melhor Pós-Venda do Mercado" (suporte 24/7, boletos, agendamentos, visita presencial). O site lista
+Bradesco, Amil, Alice, SulAmérica, Hapvida e MedSênior; o sistema tem MedSênior, Amil, SulAmérica, Omint
+e Trasmontano (os dois conjuntos não batem). Site sem CNPJ/SUSEP visíveis; marca quase sem presença em busca.
+
+**Como a operação funciona:** é uma operação estruturada em que **a base de leads é o ativo principal**,
+alimentada por um **fluxo de entrada constante via Meta Ads** (landing page = `META ADS`; formulário
+instantâneo = `META LEAD ADS`), com campanhas focadas em **MedSênior**. O ativo vale pelo quanto é
+**trabalhado**: lead de anúncio é estoque perecível (perde valor em horas/dias sem contato).
+
+**Perfil da base (296 leads, abr–nov/2026, ~40/mês, pico de 74 em maio):**
+- Idade mediana **65**; ~72% das idades informadas têm **59+**. Cotações de **1 vida (52%)** ou
+  **2 vidas (37%, casais)**.
+- **64% DDD 19 (Campinas e região)**, 16% DDD 11 (São Paulo) — Campinas é a praça central.
+- **60% já têm plano** (Unimed é o mais citado) → venda é majoritariamente **troca de plano**
+  (portabilidade/redução de carência importam). Orçamento típico: "até R$ 2.000" / "a partir de R$ 697".
+- Operadora-foco (MedSênior): em expansão (268 mil beneficiários no fim de 2025, +31%; meta de 1 milhão
+  até 2030), entrada a partir de 49 anos (PF) e 44 (PME). Fonte de terceiros indica PME ~30% mais barato
+  que PF em Campinas — confirmar na tabela oficial antes de usar como argumento.
+
+**Gargalo identificado:** não é entrada nem capacidade (4 corretores ≈ 10 leads/mês cada), é
+**processamento**: 99% das negociações em andamento estavam em "Sem contato", só 4 com próxima ação,
+1 venda e 3 perdas (2 por "muito tempo sem contato"); 111 leads do Meta sem corretor.
+
+**Indicadores que uma operação assim precisa** (ainda não existem no sistema): tempo até o 1º contato,
+taxa de contato (tocados ÷ recebidos), conversão por etapa e por corretor, idade do estoque (24h / 7d /
+30d sem contato), custo por lead e por venda (exige gasto de anúncio, fora do sistema) e receita
+(comissão) por campanha/anúncio — o `utm_*` dos leads já permite ligar venda à origem.
+
+**Cuidados por a base ser o ativo:**
+- Qualidade: deduplicação por telefone (feita), padronização, enriquecimento (idades em texto livre
+  ficaram para conferência manual).
+- Ciclo de vida: lead não convertido deve ir para recontato periódico (ex.: "mensagem periódica 30 dias",
+  reajuste anual do plano atual), não ser descartado.
+- **LGPD:** idade, plano atual e hospitais preferidos são **dados de saúde (sensíveis)**. Pendentes:
+  consentimento na captação (site e formulário do Meta), prazo de retenção e atendimento a pedido de
+  exclusão — tratar com o jurídico da empresa antes de ampliar uso/compartilhamento da base.
+
 ## Estrutura
 
 ```
@@ -234,3 +274,29 @@ API_TOKEN=<token> node scripts/importar-leads.js "<arquivo>" --api <URL da API> 
 3. Estorno e vigência das tabelas não são aplicados no cálculo.
 4. `repassesController.relatorioPorCorretor` não está roteado nem filtra por empresa.
 5. CORS: se a landing page enviar leads direto do navegador, o domínio dela precisa estar em `CORS_ORIGIN`.
+
+## Ideias para depois (combinadas com o usuário, ainda não iniciadas)
+
+**Prioridade sugerida** (pelo gargalo de processamento, ver "Contexto do negócio"):
+1. **Painel da operação** para a daily: entrada de leads por semana/campanha, tempo até o 1º contato,
+   taxa de contato, conversão por corretor e idade do estoque sem contato.
+2. **Velocidade no atendimento:** distribuir automaticamente leads novos entre corretores ativos no momento
+   em que chegam (rodízio) e alertar leads há mais de X horas sem contato.
+3. **Fechar o ciclo do anúncio:** relatório de vendas e comissão por `utm_campaign`/`utm_content`.
+4. **Pré-orçamentos** (abaixo).
+5. **Pós-venda** como processo (tarefas por cliente: boleto, agendamentos, aniversário de contrato) —
+   é a promessa da marca.
+
+**Pré-orçamentos a partir de tabelas de preço** (pedido em 15/11/2026, adiado pelo usuário)
+- Objetivo: gerar pré-orçamento de plano de saúde a partir das idades das vidas (`clientes.idades`),
+  comparando planos/operadoras da praça, a partir do cliente ou da negociação (registrar no histórico).
+- **Decidido: usar só as tabelas OFICIAIS** que a corretora recebe das operadoras/assessorias (PDF ou
+  planilha). **Não** fazer scraping de sites de terceiros — o exemplo considerado
+  (planodesaudemedseniorsa.com.br) é de **outra corretora**, cópia parcial (uma faixa etária por praça)
+  e sem garantia de atualização.
+- Modelo previsto: tabela de preço por operadora + plano + praça + acomodação (enfermaria/apartamento) +
+  modalidade (PF/PME) + vigência, com valor nas **10 faixas etárias da ANS**; importador no formato que
+  a corretora recebe; saída com a data da tabela e o aviso "sujeito a confirmação na proposta".
+- Para retomar, falta: (1) um exemplo real da tabela (colocar em `backend/imports/`, fora do Git),
+  começando pela MedSênior; (2) quais praças atendem (provável: Campinas e região, São Paulo);
+  (3) formato de entrega ao cliente (PDF, texto para WhatsApp ou ambos).

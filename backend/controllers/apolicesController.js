@@ -1,6 +1,35 @@
 const pool = require('../config/database');
-const { regraDaParcela, dataPrevisaoRecebimento, valorComissao } = require('../utils/comissaoParcela');
+const { regraDaParcela, dataPrevisaoRecebimento, valorComissao, diaVencimentoValido } = require('../utils/comissaoParcela');
 const { pode, escopoCorretor } = require('../utils/permissoes');
+const { competenciaBrasil, dataBrasil } = require('../utils/dataBrasil');
+
+const DIA_VENCIMENTO_OBRIGATORIO = 'Informe o dia de vencimento do boleto (1 a 31): ele define a previsão de recebimento';
+
+// Comissões ainda não recebidas acompanham a apólice (spec 002/RN-19): mudar a mensalidade ou o dia
+// de vencimento recalcula valor e previsão. Comissões recebidas não mudam (o dinheiro já entrou).
+const recalcularPendentes = async (db, apolice) => {
+  if (!diaVencimentoValido(apolice.dia_vencimento)) return;
+  const pendentes = await db.query(
+    `SELECT id, competencia, percentual_comissao FROM comissoes
+     WHERE apolice_id = $1 AND status IN ('prevista', 'atrasada')`,
+    [apolice.id]
+  );
+  const hoje = dataBrasil();
+  for (const c of pendentes.rows) {
+    const valor = valorComissao(apolice.valor_premio_mensal, c.percentual_comissao);
+    const previsao = dataPrevisaoRecebimento(c.competencia, apolice.dia_vencimento);
+    // Se a nova previsão não está mais atrasada (RN-11), volta para prevista
+    await db.query(
+      `UPDATE comissoes
+       SET valor_premio = $1, valor_comissao_bruto = $2, valor_comissao_liquido = $2,
+           data_previsao_recebimento = $3,
+           status = CASE WHEN status = 'atrasada' AND $3::date >= $4::date - 5 THEN 'prevista' ELSE status END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5`,
+      [apolice.valor_premio_mensal, valor, previsao, hoje, c.id]
+    );
+  }
+};
 
 // Define como a apólice comissiona: pela tabela da seguradora (tabela_comissao_id) ou por
 // percentual fixo. Com tabela, o percentual guardado na apólice é o da 1ª parcela (referência).
@@ -109,13 +138,8 @@ const apolicesController = {
       // Validações antes de gravar qualquer coisa
       const vinculos = await validarVinculos(client, req.body, empresaId);
       if (vinculos.error) return res.status(400).json({ error: vinculos.error });
-      const seg = vinculos.seguradora;
-      // Sem dia de pagamento/prazo de repasse a data prevista sairia errada: exige o cadastro completo
-      if (seg.dia_pagamento == null || seg.prazo_repasse_dias == null) {
-        return res.status(400).json({
-          error: `Cadastre o dia de pagamento e o prazo de repasse da seguradora ${seg.nome} antes de criar apólices`,
-        });
-      }
+      // A previsão de recebimento vem do vencimento do boleto: sem ele a data sairia errada (RN-07)
+      if (!diaVencimentoValido(dia_vencimento)) return res.status(400).json({ error: DIA_VENCIMENTO_OBRIGATORIO });
 
       const resolvida = await resolverComissao(client, req.body, seguradora_id);
       if (resolvida.error) return res.status(400).json({ error: resolvida.error });
@@ -136,10 +160,9 @@ const apolicesController = {
       );
       const apolice = apoliceResult.rows[0];
 
-      // Comissão da 1ª parcela para o mês atual (se a regra gerar comissão)
+      // Comissão da 1ª parcela no mês atual em Brasília (se a regra gerar comissão)
       if (regra) {
-        const hoje = new Date();
-        const competencia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+        const competencia = competenciaBrasil();
         const valor = valorComissao(valor_premio_mensal, regra.percentual);
 
         await client.query(
@@ -148,7 +171,7 @@ const apolicesController = {
                                   data_previsao_recebimento, status, empresa_id)
            VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $7, $8, 'prevista', $9)`,
           [apolice.id, corretor_responsavel_id, competencia, regra.tipo, valor_premio_mensal,
-           regra.percentual, valor, dataPrevisaoRecebimento(hoje, seg), empresaId]
+           regra.percentual, valor, dataPrevisaoRecebimento(competencia, dia_vencimento), empresaId]
         );
       }
 
@@ -168,20 +191,32 @@ const apolicesController = {
 
   // Atualizar apólice (trocar a tabela vale para as próximas parcelas; as já geradas não mudam).
   // Pós-venda altera só campos operacionais.
+  // Comissões ainda não recebidas são recalculadas com a nova mensalidade/vencimento (RN-19).
   async update(req, res) {
+    const client = await pool.connect();
     try {
       const { id } = req.params;
+
+      if (req.body.dia_vencimento !== undefined && !diaVencimentoValido(req.body.dia_vencimento)) {
+        return res.status(400).json({ error: DIA_VENCIMENTO_OBRIGATORIO });
+      }
 
       if (req.user.role === 'pos_venda') {
         const campos = CAMPOS_POS_VENDA.filter((c) => req.body[c] !== undefined);
         if (campos.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
-        const result = await pool.query(
+        await client.query('BEGIN');
+        const result = await client.query(
           `UPDATE apolices SET ${campos.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_at = CURRENT_TIMESTAMP
            WHERE id = $${campos.length + 1} AND empresa_id = $${campos.length + 2}
            RETURNING *`,
           [...campos.map((c) => (req.body[c] === '' ? null : req.body[c])), id, req.user.empresa_id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Apólice não encontrada' });
+        if (result.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Apólice não encontrada' });
+        }
+        await recalcularPendentes(client, result.rows[0]);
+        await client.query('COMMIT');
         return res.json(semComissao(result.rows[0]));
       }
 
@@ -191,13 +226,16 @@ const apolicesController = {
         data_inicio_vigencia, data_fim_vigencia, dia_vencimento, status, observacoes
       } = req.body;
 
-      const vinculos = await validarVinculos(pool, req.body, req.user.empresa_id);
+      if (!diaVencimentoValido(dia_vencimento)) return res.status(400).json({ error: DIA_VENCIMENTO_OBRIGATORIO });
+
+      const vinculos = await validarVinculos(client, req.body, req.user.empresa_id);
       if (vinculos.error) return res.status(400).json({ error: vinculos.error });
 
-      const resolvida = await resolverComissao(pool, req.body, seguradora_id);
+      const resolvida = await resolverComissao(client, req.body, seguradora_id);
       if (resolvida.error) return res.status(400).json({ error: resolvida.error });
 
-      const result = await pool.query(
+      await client.query('BEGIN');
+      const result = await client.query(
         `UPDATE apolices
          SET cliente_id = $1, seguradora_id = $2, corretor_responsavel_id = $3,
              numero_apolice = $4, tipo_seguro = $5, valor_premio_mensal = $6,
@@ -211,16 +249,22 @@ const apolicesController = {
       );
 
       if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Apólice não encontrada' });
       }
 
+      await recalcularPendentes(client, result.rows[0]);
+      await client.query('COMMIT');
       res.json(result.rows[0]);
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
       if (error.code === '23505') {
         return res.status(400).json({ error: 'Já existe uma apólice com este número' });
       }
       console.error('Erro ao atualizar apólice:', error);
       res.status(500).json({ error: 'Erro ao atualizar apólice' });
+    } finally {
+      client.release();
     }
   },
 

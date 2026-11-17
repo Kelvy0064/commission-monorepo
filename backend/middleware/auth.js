@@ -18,14 +18,17 @@ const authMiddleware = async (req, res, next) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.nome, u.email, u.role, u.status, u.empresa_id, u.corretor_id,
-              e.nome AS empresa_nome, e.ativa AS empresa_ativa
+              e.nome AS empresa_nome, e.ativa AS empresa_ativa, co.status AS corretor_status
        FROM usuarios u
        JOIN empresas e ON e.id = u.empresa_id
+       LEFT JOIN corretores co ON co.id = u.corretor_id
        WHERE u.id = $1`,
       [decoded.id]
     );
     const user = result.rows[0];
-    if (!user || user.status !== 'ativo' || !user.role || !user.empresa_ativa) {
+    // Corretor com cadastro inativo perde o acesso na hora (spec 001/RN-21)
+    const corretorInativo = user?.role === 'corretor' && user.corretor_status === 'inativo';
+    if (!user || user.status !== 'ativo' || !user.role || !user.empresa_ativa || corretorInativo) {
       return res.status(401).json({ error: 'Acesso não autorizado' });
     }
     req.user = user;

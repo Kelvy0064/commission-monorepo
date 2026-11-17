@@ -1,5 +1,6 @@
 const pool = require('../config/database');
 const { escopoCorretor } = require('../utils/permissoes');
+const { SQL_HOJE_BRASIL } = require('../utils/dataBrasil');
 
 // Normaliza a lista de idades do contrato. Retorna null se for inválida.
 // Ausente → [] (cliente sem idades informadas).
@@ -112,7 +113,7 @@ const insertCliente = async (body, db, empresaId) => {
   try {
     const result = await db.query(
       `INSERT INTO clientes (${columns.join(', ')}, data_cadastro)
-       VALUES (${placeholders.join(', ')}, COALESCE($${columns.length + 1}::date, CURRENT_DATE))
+       VALUES (${placeholders.join(', ')}, COALESCE($${columns.length + 1}::date, ${SQL_HOJE_BRASIL}))
        RETURNING *`,
       [...Object.values(values), dataCadastro]
     );

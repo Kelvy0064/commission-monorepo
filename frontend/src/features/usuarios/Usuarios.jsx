@@ -8,7 +8,7 @@ import Spinner from '../../components/common/Spinner/Spinner';
 import { usuariosService } from '../../api/services/usuarios.service';
 import { corretoresService } from '../../api/services/corretores.service';
 import { useAuth } from '../../context/AuthContext';
-import { PERFIS } from '../../auth/permissoes';
+import { PERFIS, PERFIS_DO_GESTOR } from '../../auth/permissoes';
 import { formatDate } from '../../utils/formatters';
 
 const STATUS_BADGE = {
@@ -29,7 +29,8 @@ const UsuarioForm = ({ usuario, corretores, usuarios, souAdmin, onSubmit, onCanc
   // Corretores livres (sem usuário) + o atual deste usuário
   const vinculados = new Set(usuarios.filter((u) => u.corretor_id && u.id !== usuario.id).map((u) => u.corretor_id));
   const livres = corretores.filter((c) => !vinculados.has(c.id));
-  const perfis = Object.entries(PERFIS).filter(([id]) => souAdmin || id !== 'admin');
+  // Gestor só atribui Corretor e Pós-venda (a API garante a regra)
+  const perfis = Object.entries(PERFIS).filter(([id]) => souAdmin || PERFIS_DO_GESTOR.includes(id));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -166,8 +167,8 @@ const Usuarios = () => {
     }
   };
 
-  // Gestor não edita administradores; ninguém edita a si mesmo
-  const podeEditar = (u) => u.id !== user?.id && (souAdmin || u.role !== 'admin');
+  // Gestor só gerencia pendentes, corretores e pós-venda; ninguém edita a si mesmo
+  const podeEditar = (u) => u.id !== user?.id && (souAdmin || !u.role || PERFIS_DO_GESTOR.includes(u.role));
   const pendentes = usuarios.filter((u) => u.status === 'pendente').length;
 
   if (!pode('usuarios.gerenciar')) return null;

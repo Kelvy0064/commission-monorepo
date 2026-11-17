@@ -8,6 +8,7 @@ require('dotenv').config();
 const routes = require('./routes');
 const pool = require('./config/database');
 const gerarComissoesMes = require('./jobs/gerarComissoesMes');
+const { FUSO, SQL_HOJE_BRASIL } = require('./utils/dataBrasil');
 
 const app = express();
 
@@ -43,6 +44,8 @@ app.get('/', (req, res) => {
   });
 });
 
+// Os jobs rodam no horário de Brasília (o servidor está em UTC) — spec 002/RN-20
+
 // Job agendado: Verificar comissões atrasadas (todo dia às 8h)
 cron.schedule('0 8 * * *', async () => {
   try {
@@ -52,25 +55,25 @@ cron.schedule('0 8 * * *', async () => {
       UPDATE comissoes 
       SET status = 'atrasada'
       WHERE status = 'prevista' 
-      AND data_previsao_recebimento < CURRENT_DATE - INTERVAL '5 days'
+      AND data_previsao_recebimento < ${SQL_HOJE_BRASIL} - 5
     `);
     
     console.log('✅ Comissões atrasadas atualizadas');
   } catch (error) {
     console.error('❌ Erro ao verificar comissões atrasadas:', error);
   }
-});
+}, { timezone: FUSO });
 
 // Job agendado: Gerar comissões do próximo mês (dia 1 às 00:00)
 cron.schedule('0 0 1 * *', async () => {
   try {
     console.log('🔄 Gerando comissões do novo mês...');
-    const { geradas, encerradas } = await gerarComissoesMes(new Date());
-    console.log(`✅ Comissões do novo mês geradas: ${geradas} (apólices com tabela encerrada: ${encerradas})`);
+    const { geradas, encerradas, puladas } = await gerarComissoesMes(new Date());
+    console.log(`✅ Comissões do novo mês geradas: ${geradas} (tabela encerrada: ${encerradas}; sem vencimento: ${puladas})`);
   } catch (error) {
     console.error('❌ Erro ao gerar comissões:', error);
   }
-});
+}, { timezone: FUSO });
 
 // Error handling middleware
 app.use((err, req, res, next) => {

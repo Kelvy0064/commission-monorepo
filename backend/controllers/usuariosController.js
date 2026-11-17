@@ -1,5 +1,5 @@
 const pool = require('../config/database');
-const { PERFIS } = require('../utils/permissoes');
+const { PERFIS, PERFIS_DO_GESTOR } = require('../utils/permissoes');
 
 const STATUS = ['pendente', 'ativo', 'bloqueado'];
 
@@ -47,9 +47,13 @@ const usuariosController = {
       if (role && !PERFIS[role]) return res.status(400).json({ error: 'Perfil inválido' });
       if (!STATUS.includes(status)) return res.status(400).json({ error: 'Status inválido' });
 
-      // Gestor não mexe em administradores nem cria novos
-      if (req.user.role !== 'admin' && (usuario.role === 'admin' || role === 'admin')) {
-        return res.status(403).json({ error: 'Só um Administrador pode gerenciar administradores' });
+      // Gestor só gerencia (aprova, muda perfil, bloqueia) usuários Corretor e Pós-venda (spec 001/RN-19)
+      if (req.user.role !== 'admin') {
+        const alvoGerenciavel = usuario.role === null || PERFIS_DO_GESTOR.includes(usuario.role);
+        const perfilPermitido = role === null || PERFIS_DO_GESTOR.includes(role);
+        if (!alvoGerenciavel || !perfilPermitido) {
+          return res.status(403).json({ error: 'O Gestor gerencia apenas usuários Corretor e Pós-venda' });
+        }
       }
 
       if (status === 'ativo' && !role) {

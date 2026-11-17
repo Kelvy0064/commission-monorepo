@@ -26,6 +26,14 @@ export const resumoTabela = (t) => {
   return partes.join(' · ');
 };
 
+// Mesmo cálculo do backend (backend/utils/comissaoParcela.js → valorComissao, spec 002/RN-05):
+// centavos inteiros, meio centavo para cima.
+export const valorComissao = (base, percentual) => {
+  const produto = Math.round(Number(base) * 100) * Math.round(Number(percentual) * 100);
+  const sinal = produto < 0 ? -1 : 1;
+  return (sinal * Math.floor((Math.abs(produto) + 5000) / 10000)) / 100;
+};
+
 // Cronograma de comissão para uma mensalidade: [{ parcela, tipo, percentual, valor }]
 // Mostra o agenciamento parcela a parcela e as `mesesVitalicio` primeiras parcelas de vitalício.
 export const cronograma = (t, mensalidade, mesesVitalicio = 3) => {
@@ -34,7 +42,7 @@ export const cronograma = (t, mensalidade, mesesVitalicio = 3) => {
     parcela: i + 1,
     tipo: 'Agenciamento',
     percentual: Number(p),
-    valor: (valor * Number(p)) / 100,
+    valor: valorComissao(valor, p),
   }));
   if (t.vitalicio_percentual != null) {
     const n = t.vitalicio_meses ? Math.min(t.vitalicio_meses, mesesVitalicio) : mesesVitalicio;
@@ -43,7 +51,7 @@ export const cronograma = (t, mensalidade, mesesVitalicio = 3) => {
         parcela: linhas.length + 1,
         tipo: 'Vitalício',
         percentual: Number(t.vitalicio_percentual),
-        valor: (valor * Number(t.vitalicio_percentual)) / 100,
+        valor: valorComissao(valor, t.vitalicio_percentual),
       });
     }
   }

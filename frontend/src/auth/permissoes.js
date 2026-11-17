@@ -10,7 +10,8 @@ export const PERFIS = {
 
 const TODOS = Object.keys(PERFIS);
 
-const PERMISSOES = {
+// Exportada para o teste de paridade com o backend (frontend/tests/permissoes.test.js)
+export const PERMISSOES = {
   'dashboard.ver': ['admin', 'gestor', 'corretor'],
 
   'clientes.ver': TODOS,
@@ -46,5 +47,9 @@ const PERMISSOES = {
 
   'usuarios.gerenciar': ['admin', 'gestor'],
 };
+
+// Perfis que o Gestor pode atribuir e gerenciar (aprovar, trocar perfil, bloquear).
+// Administradores e outros gestores são geridos só pelo Administrador (spec 001/RN-19).
+export const PERFIS_DO_GESTOR = ['corretor', 'pos_venda'];
 
 export const pode = (role, permissao) => Boolean(role && PERMISSOES[permissao]?.includes(role));

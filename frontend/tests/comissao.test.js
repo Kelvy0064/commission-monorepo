@@ -2,7 +2,24 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cronograma, resumoTabela } from '../src/features/seguradoras/comissao.js';
+import { createRequire } from 'node:module';
+import { cronograma, resumoTabela, valorComissao } from '../src/features/seguradoras/comissao.js';
+
+const require = createRequire(import.meta.url);
+const backend = require('../../backend/utils/comissaoParcela.js');
+
+test('002/CA-05: simulação da tela arredonda igual ao backend (meio centavo para cima)', () => {
+  assert.equal(valorComissao(16.65, 30), 5);
+  for (let centavos = 0; centavos <= 200000; centavos += 11) {
+    for (const p of [2, 2.5, 30, 33.33, 90, 100, 150]) {
+      assert.equal(valorComissao(centavos / 100, p), backend.valorComissao(centavos / 100, p));
+    }
+  }
+});
+
+test('002/CA-05: cronograma usa o valor arredondado', () => {
+  assert.equal(cronograma({ percentuais_parcelas: [30] }, 16.65)[0].valor, 5);
+});
 
 const tabela = { percentuais_parcelas: ['100', '90'], vitalicio_percentual: '2', vitalicio_meses: 12 };
 

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { PERFIS, PERMISSOES, pode } from '../src/auth/permissoes.js';
+import { PERFIS, PERMISSOES, PERFIS_DO_GESTOR, pode } from '../src/auth/permissoes.js';
 
 const require = createRequire(import.meta.url);
 const backend = require('../../backend/utils/permissoes.js');
@@ -15,6 +15,10 @@ test('perfis do front são os mesmos do backend', () => {
 
 test('matriz de permissões do front é idêntica à do backend', () => {
   assert.deepEqual(PERMISSOES, backend.PERMISSOES);
+});
+
+test('perfis que o gestor gerencia são os mesmos do backend', () => {
+  assert.deepEqual(PERFIS_DO_GESTOR, backend.PERFIS_DO_GESTOR);
 });
 
 test('pode() do front responde igual ao do backend para todo perfil e permissão', () => {

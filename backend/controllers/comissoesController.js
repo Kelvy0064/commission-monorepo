@@ -1,10 +1,10 @@
 const pool = require('../config/database');
 const { escopoCorretor } = require('../utils/permissoes');
+const { valorComissao, DIAS_PARA_REPASSE } = require('../utils/comissaoParcela');
+const { competenciaBrasil, dataBrasil, somarDias, SQL_HOJE_BRASIL } = require('../utils/dataBrasil');
 
-const competenciaAtual = () => {
-  const hoje = new Date();
-  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-};
+const competenciaAtual = () => competenciaBrasil();
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 // Dashboard do corretor: só os próprios números (negociações e repasses)
 const dashboardCorretor = async (empresaId, corretorId) => {
@@ -77,12 +77,23 @@ const comissoesController = {
   },
 
   // PUT /comissoes/:id/recebida { data_recebimento, valor_real }
+  // PUT /comissoes/:id/recebida { data_recebimento?, valor_real? } (spec 002/RN-12).
+  // Pode ser repetido para corrigir data/valor: o repasse ainda PENDENTE da comissão acompanha
+  // (RN-19); repasse já pago não muda.
   async marcarRecebida(req, res) {
+    const client = await pool.connect();
     try {
       const { id } = req.params;
-      const { data_recebimento, valor_real } = req.body;
+      const dataRecebimento = req.body.data_recebimento ? String(req.body.data_recebimento).slice(0, 10) : dataBrasil();
+      if (!DATA_ISO.test(dataRecebimento)) return res.status(400).json({ error: 'Data de recebimento inválida' });
+      const informado = req.body.valor_real;
+      const valorReal = informado === undefined || informado === null || informado === '' ? null : Number(informado);
+      if (valorReal !== null && !(Number.isFinite(valorReal) && valorReal >= 0)) {
+        return res.status(400).json({ error: 'Valor recebido inválido' });
+      }
 
-      const result = await pool.query(
+      await client.query('BEGIN');
+      const result = await client.query(
         `UPDATE comissoes
          SET status = 'recebida',
              data_recebimento_real = $1,
@@ -90,17 +101,36 @@ const comissoesController = {
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $3 AND empresa_id = $4
          RETURNING *`,
-        [data_recebimento || new Date().toISOString().split('T')[0], valor_real, id, req.user.empresa_id]
+        [dataRecebimento, valorReal, id, req.user.empresa_id]
       );
 
       if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Comissão não encontrada' });
       }
+      const comissao = result.rows[0];
 
-      res.json(result.rows[0]);
+      // Repasse pendente acompanha o valor e a data do recebimento (com o percentual gravado nele)
+      const pendentes = await client.query(
+        `SELECT id, percentual_repasse FROM repasses WHERE comissao_id = $1 AND status = 'pendente'`,
+        [comissao.id]
+      );
+      for (const r of pendentes.rows) {
+        await client.query(
+          `UPDATE repasses SET valor_repasse = $1, data_previsao_pagamento = $2, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3`,
+          [valorComissao(comissao.valor_comissao_liquido, r.percentual_repasse), somarDias(dataRecebimento, DIAS_PARA_REPASSE), r.id]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json(comissao);
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
       console.error('Erro ao marcar comissão:', error);
       res.status(500).json({ error: 'Erro ao marcar comissão como recebida' });
+    } finally {
+      client.release();
     }
   },
 
@@ -136,7 +166,7 @@ const comissoesController = {
            LEFT JOIN corretores cor ON c.corretor_id = cor.id
            LEFT JOIN clientes cl ON a.cliente_id = cl.id
            WHERE c.status = 'prevista' AND c.empresa_id = $1
-           AND c.data_previsao_recebimento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+           AND c.data_previsao_recebimento BETWEEN ${SQL_HOJE_BRASIL} AND ${SQL_HOJE_BRASIL} + 7
            ORDER BY c.data_previsao_recebimento
            LIMIT 10`,
           [empresaId]

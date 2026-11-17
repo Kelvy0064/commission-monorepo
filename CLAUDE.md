@@ -101,7 +101,9 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
   `ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_NOME`/`ADMIN_EMPRESA_CODIGO` (admin inicial),
   `LEADS_EMPRESA_CODIGO` (empresa padrão dos leads públicos). Ver `backend/.env.example`.
 - Frontend: `VITE_API_URL` é embutida **no build** — mudar exige redeploy.
-- O servidor do Railway roda em **UTC**.
+- O servidor do Railway roda em **UTC**. Regras de negócio usam o **horário de Brasília** via
+  `backend/utils/dataBrasil.js` (`dataBrasil`, `competenciaBrasil`, `SQL_HOJE_BRASIL`); os crons usam
+  `{ timezone: 'America/Sao_Paulo' }`. Não use `new Date()`/`CURRENT_DATE` direto para "hoje".
 - O agente não tem acesso ao painel nem ao CLI do Railway: o usuário configura variáveis. Para
   confirmar um deploy, compare o hash do bundle (`index-*.js` no HTML do front) e teste a API.
 
@@ -139,11 +141,12 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
   `pos_venda`. `usuarios.status`: `pendente` | `ativo` | `bloqueado`. Ativo exige perfil.
 - **Matriz de permissões**: `backend/utils/permissoes.js` (fonte) e cópia em
   `frontend/src/auth/permissoes.js` — **mantenha as duas iguais**. Resumo:
-  - Admin: tudo. Gestor: operação completa, aprova usuários, **só lê** seguradoras e tabelas de
-    comissão, **não** cria/promove/edita administradores.
+  - Admin: tudo. Gestor: operação completa, **só lê** seguradoras e tabelas de comissão e gerencia
+    (aprova, troca perfil, bloqueia) **só** usuários Corretor e Pós-venda (`PERFIS_DO_GESTOR`).
   - Corretor: **só os próprios** clientes, negociações, apólices (sem dados de comissão) e repasses;
     dashboard próprio. Escopo aplicado nos controllers com `escopoCorretor(req)` (usa
-    `usuarios.corretor_id`); o que ele cria fica sempre com ele.
+    `usuarios.corretor_id`); o que ele cria fica sempre com ele. Cadastro de corretor **inativo** →
+    o usuário perde o acesso (401/403), mas segue recebendo repasses.
   - Pós-venda: lê clientes, negociações e seguradoras; edita apólices **só nos campos operacionais**
     (número, status, vigência, vencimento, observações); **não vê comissões** (a API remove
     `percentual_comissao`/tabela das apólices para quem não tem `apolices.ver_comissao`).
@@ -190,8 +193,7 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
 
 **Seguradoras** (`seguradoras`) e **tabelas de comissão** (`tabelas_comissao`)
 - Seguradora: dados cadastrais + `contrato_assinado`/`_em`, `regras_pagamento`, `pos_venda`.
-  `dia_pagamento` e `prazo_repasse_dias` podem ser NULL ("a confirmar"); nesse caso **criar apólice
-  é bloqueado** e o job mensal **pula** a apólice (data prevista sairia errada).
+  `dia_pagamento` e `prazo_repasse_dias` podem ser NULL ("a confirmar") e hoje são só informativos.
 - Tabela de comissão (várias por seguradora): `modalidade`, `percentuais_parcelas NUMERIC[]`
   (agenciamento parcela a parcela, ex. `{100,90}`), `vitalicio_percentual` (a partir da parcela
   seguinte à última da lista) por `vitalicio_meses` (NULL = enquanto ativo), `estorno_meses`,
@@ -206,10 +208,17 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
   - O job mensal (`jobs/gerarComissoesMes.js`, cron dia 1 00:00) gera a **próxima parcela** de cada
     apólice ativa (idempotente por competência). Quando a tabela acaba, para de gerar.
   - Sem tabela: percentual fixo todo mês.
-  - Data prevista = dia de pagamento da seguradora no mês + prazo de repasse.
+  - A comissão é paga pela **plataforma VIDA** quando o cliente paga o boleto: data prevista =
+    **dia de vencimento do boleto** (`apolices.dia_vencimento`, obrigatório) no mês da competência
+    (último dia do mês se não existir). Apólice sem vencimento é pulada pelo job.
+  - Comissões ainda não recebidas acompanham a apólice (mudar mensalidade/vencimento recalcula).
+  - Valores arredondados ao centavo com **meio centavo para cima**, calculados em inteiros
+    (`valorComissao`; o front tem a mesma função em `features/seguradoras/comissao.js`).
+  - Regras completas e critérios: [`specs/002-comissao-por-parcela/spec.md`](specs/002-comissao-por-parcela/spec.md).
 - **Repasse ao corretor só da 1ª parcela**: `percentual_comissao` do **cadastro do corretor** sobre o
   **valor efetivamente recebido** (`valor_comissao_liquido`). Demais parcelas ficam com a corretora.
-  `POST /repasses/gerar` é idempotente.
+  `POST /repasses/gerar` é idempotente. Repasse vence **recebimento + 2 dias**. Corrigir o recebimento
+  (`PUT /comissoes/:id/recebida` de novo) atualiza o repasse **pendente**; repasse pago não muda.
 - `pagamentos_seguradora` existe no schema mas não é usada.
 
 ## Convenções de código
@@ -293,8 +302,7 @@ API_TOKEN=<token> node scripts/importar-leads.js "<arquivo>" --api <URL da API> 
 3. Estorno e vigência das tabelas não são aplicados no cálculo.
 4. `repassesController.relatorioPorCorretor` não está roteado nem filtra por empresa.
 5. CORS: se a landing page enviar leads direto do navegador, o domínio dela precisa estar em `CORS_ORIGIN`.
-6. `valorComissao` (`utils/comissaoParcela.js`) erra 1 centavo em casos de meio centavo por ponto
-   flutuante (16,65 × 30% = 4,995 → 4,99). Registrado como teste `todo`; corrigir exige decisão do usuário.
+6. Perguntas em aberto nas specs (`specs/*/spec.md`, seção "Perguntas em aberto") aguardam o usuário.
 
 ## Ideias para depois (combinadas com o usuário, ainda não iniciadas)
 

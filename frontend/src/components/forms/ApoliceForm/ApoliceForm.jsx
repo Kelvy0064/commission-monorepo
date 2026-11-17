@@ -3,7 +3,7 @@ import Button from '../../common/Button/Button';
 import { validateRequired } from '../../../utils/validators';
 import { TIPO_SEGURO } from '../../../utils/constants';
 import { seguradorasService } from '../../../api/services/seguradoras.service';
-import { cronograma, fmtPct, resumoTabela, modalidadeLabel } from '../../../features/seguradoras/comissao';
+import { cronograma, fmtPct, resumoTabela, modalidadeLabel, valorComissao } from '../../../features/seguradoras/comissao';
 import { formatCurrency } from '../../../utils/formatters';
 
 const ApoliceForm = ({ 
@@ -71,11 +71,11 @@ const ApoliceForm = ({
   const previsao = tabelaEscolhida
     ? cronograma(tabelaEscolhida, mensalidade, 2)
     : formData.percentual_comissao !== '' && mensalidade
-      ? [{ parcela: 1, tipo: 'Fixa (todo mês)', percentual: Number(formData.percentual_comissao), valor: (mensalidade * Number(formData.percentual_comissao)) / 100 }]
+      ? [{ parcela: 1, tipo: 'Fixa (todo mês)', percentual: Number(formData.percentual_comissao), valor: valorComissao(mensalidade, formData.percentual_comissao) }]
       : [];
   const corretor = corretores.find((c) => String(c.id) === String(formData.corretor_responsavel_id));
   const repasseCorretor =
-    corretor && previsao[0] ? (previsao[0].valor * Number(corretor.percentual_comissao)) / 100 : null;
+    corretor && previsao[0] ? valorComissao(previsao[0].valor, corretor.percentual_comissao) : null;
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -110,6 +110,12 @@ const ApoliceForm = ({
     // Sem tabela de comissão, o percentual fixo é obrigatório
     if (!modoOperacional && !formData.tabela_comissao_id && !validateRequired(formData.percentual_comissao)) {
       newErrors.percentual_comissao = 'Informe o percentual ou escolha uma tabela de comissão';
+    }
+
+    // O vencimento do boleto define a previsão de recebimento da comissão (spec 002/RN-06)
+    const dia = Number(formData.dia_vencimento);
+    if (formData.dia_vencimento === '' || formData.dia_vencimento === null || !Number.isInteger(dia) || dia < 1 || dia > 31) {
+      newErrors.dia_vencimento = 'Informe o dia de vencimento do boleto (1 a 31)';
     }
 
     if (!validateRequired(formData.data_inicio_vigencia)) {
@@ -364,7 +370,7 @@ const ApoliceForm = ({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Vencimento (opcional)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Dia de vencimento do boleto *</label>
         <input
           type="number"
           min="1"
@@ -372,10 +378,16 @@ const ApoliceForm = ({
           value={formData.dia_vencimento}
           onChange={(e) => handleChange('dia_vencimento', e.target.value)}
           placeholder="1 a 31"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+            errors.dia_vencimento ? 'border-red-500' : 'border-gray-300'
+          }`}
           disabled={loading}
         />
-        <p className="mt-1 text-xs text-gray-500">Deixe em branco se não aplicável</p>
+        {errors.dia_vencimento ? (
+          <p className="mt-1 text-sm text-red-600">{errors.dia_vencimento}</p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-500">Define a previsão de recebimento da comissão (pago pela plataforma VIDA quando o cliente paga o boleto)</p>
+        )}
       </div>
 
       <div>

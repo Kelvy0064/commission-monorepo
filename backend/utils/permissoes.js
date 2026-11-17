@@ -50,6 +50,10 @@ const PERMISSOES = {
   'usuarios.gerenciar': ['admin', 'gestor'], // gestor não cria/promove/edita administradores
 };
 
+// Perfis que o Gestor pode atribuir e gerenciar (aprovar, trocar perfil, bloquear).
+// Administradores e outros gestores são geridos só pelo Administrador (spec 001/RN-19).
+const PERFIS_DO_GESTOR = ['corretor', 'pos_venda'];
+
 const pode = (role, permissao) => Boolean(role && PERMISSOES[permissao]?.includes(role));
 
 // Para corretores: id do cadastro de corretor do usuário (escopo "próprio").
@@ -57,4 +61,4 @@ const pode = (role, permissao) => Boolean(role && PERMISSOES[permissao]?.include
 // Corretor sem vínculo recebe -1, que não casa com nenhum registro.
 const escopoCorretor = (req) => (req.user.role === 'corretor' ? req.user.corretor_id ?? -1 : null);
 
-module.exports = { PERFIS, PERMISSOES, pode, escopoCorretor };
+module.exports = { PERFIS, PERMISSOES, PERFIS_DO_GESTOR, pode, escopoCorretor };

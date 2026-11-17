@@ -72,8 +72,8 @@ const criarUsuario = async ({
   corretorId = null,
   senha = 'senha-de-teste-123',
   nome = 'Usuário Teste',
+  email = `${unico('u')}@teste.local`,
 } = {}) => {
-  const email = `${unico('u')}@teste.local`;
   const hash = await bcrypt.hash(senha, 4);
   const u = (
     await db.query(
@@ -85,4 +85,37 @@ const criarUsuario = async ({
   return { ...u, senha, token: tokenDe(u.id) };
 };
 
-module.exports = { db, api, tokenDe, unico, empresaPorCodigo, criarEmpresa, criarCorretor, criarUsuario };
+const criarCliente = async ({ empresaId, corretorId = null, nome = 'Cliente Teste' } = {}) =>
+  (
+    await db.query('INSERT INTO clientes (nome, corretor_id, empresa_id) VALUES ($1, $2, $3) RETURNING *', [
+      nome,
+      corretorId,
+      empresaId,
+    ])
+  ).rows[0];
+
+const criarSeguradora = async ({ empresaId, nome = 'Seguradora Teste', diaPagamento = 10, prazoRepasse = 5 } = {}) =>
+  (
+    await db.query(
+      `INSERT INTO seguradoras (nome, cnpj, dia_pagamento, prazo_repasse_dias, empresa_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [nome, unico('').slice(-14).padStart(14, '0'), diaPagamento, prazoRepasse, empresaId]
+    )
+  ).rows[0];
+
+// Competência (AAAA-MM) e data (AAAA-MM-DD) no fuso do processo (UTC nos testes, como no Railway)
+const competenciaDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+module.exports = {
+  db,
+  api,
+  tokenDe,
+  unico,
+  empresaPorCodigo,
+  criarEmpresa,
+  criarCorretor,
+  criarUsuario,
+  criarCliente,
+  criarSeguradora,
+  competenciaDe,
+};

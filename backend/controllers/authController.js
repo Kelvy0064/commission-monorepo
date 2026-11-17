@@ -16,9 +16,12 @@ const publicUser = (u) => ({
 });
 
 const SELECT_USUARIO = `
-  SELECT u.*, e.nome AS empresa_nome, e.ativa AS empresa_ativa
+  SELECT u.*, e.nome AS empresa_nome, e.ativa AS empresa_ativa, co.status AS corretor_status
   FROM usuarios u
-  JOIN empresas e ON e.id = u.empresa_id`;
+  JOIN empresas e ON e.id = u.empresa_id
+  LEFT JOIN corretores co ON co.id = u.corretor_id`;
+
+const corretorInativo = (u) => u.role === 'corretor' && u.corretor_status === 'inativo';
 
 const authController = {
   // POST /auth/login { email, senha } → { token, user }
@@ -49,7 +52,8 @@ const authController = {
       if (user.status === 'pendente') {
         return res.status(403).json({ error: 'Seu cadastro está aguardando aprovação do administrador da empresa' });
       }
-      if (user.status === 'bloqueado' || !user.role || !user.empresa_ativa) {
+      // Corretor com cadastro inativo perde o acesso (spec 001/RN-21); os repasses dele seguem com o Gestor
+      if (user.status === 'bloqueado' || !user.role || !user.empresa_ativa || corretorInativo(user)) {
         return res.status(403).json({ error: 'Acesso bloqueado. Fale com o administrador da empresa' });
       }
 

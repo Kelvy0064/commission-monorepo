@@ -18,6 +18,16 @@ specs/
 
 A numeração é sequencial (`001`, `002`...) e independente da numeração das migrations.
 
+## Índice
+
+| Spec | Assunto | Status |
+|------|---------|--------|
+| [001](001-multiempresa-perfis/spec.md) | Multiempresa, perfis de acesso e auto-cadastro | implementada (retroativa, revisada em 2026-11-16) |
+| [002](002-comissao-por-parcela/spec.md) | Comissão por parcela e repasse ao corretor | implementada (retroativa, revisada em 2026-11-16) |
+| 003 | Entrada de leads (landing page, Meta) e importação | a escrever (Fase 1) |
+| 004 | Negociações: kanban e distribuição | a escrever (Fase 1) |
+| [005](005-estorno/spec.md) | Estorno: monitoramento e saldo pendente do corretor | aprovada — a implementar |
+
 ## Fluxo
 
 1. **Spec** — o pedido vira `spec.md` a partir do template. Dúvidas viram perguntas na seção

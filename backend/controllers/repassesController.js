@@ -1,5 +1,6 @@
 const pool = require('../config/database');
-const { PARCELA_COM_REPASSE, valorComissao } = require('../utils/comissaoParcela');
+const { PARCELA_COM_REPASSE, DIAS_PARA_REPASSE, valorComissao } = require('../utils/comissaoParcela');
+const { dataBrasil, somarDias } = require('../utils/dataBrasil');
 const { escopoCorretor } = require('../utils/permissoes');
 
 const repassesController = {
@@ -53,7 +54,8 @@ const repassesController = {
 
       // Comissões recebidas da 1ª parcela, com corretor, ainda sem repasse
       const comissoes = await client.query(`
-        SELECT c.*, cor.percentual_comissao AS percentual_corretor
+        SELECT c.*, cor.percentual_comissao AS percentual_corretor,
+               to_char(c.data_recebimento_real, 'YYYY-MM-DD') AS recebido_em
         FROM comissoes c
         JOIN corretores cor ON c.corretor_id = cor.id
         WHERE c.status = 'recebida'
@@ -68,15 +70,16 @@ const repassesController = {
 
       for (const comissao of comissoes.rows) {
         const valorRepasse = valorComissao(comissao.valor_comissao_liquido, comissao.percentual_corretor);
-        const dataPrevisao = new Date(comissao.data_recebimento_real);
-        dataPrevisao.setDate(dataPrevisao.getDate() + 5); // 5 dias após recebimento
+        // Vence DIAS_PARA_REPASSE dias depois de a corretora receber (spec 002/RN-15).
+        // Corretor inativo continua recebendo o repasse do que vendeu (RN-21).
+        const dataPrevisao = somarDias(comissao.recebido_em, DIAS_PARA_REPASSE);
 
         await client.query(
           `INSERT INTO repasses (comissao_id, corretor_destino_id, valor_repasse, percentual_repasse,
                                  data_previsao_pagamento, status, empresa_id)
            VALUES ($1, $2, $3, $4, $5, 'pendente', $6)`,
           [comissao.id, comissao.corretor_id, valorRepasse, comissao.percentual_corretor,
-           dataPrevisao.toISOString().split('T')[0], comissao.empresa_id]
+           dataPrevisao, comissao.empresa_id]
         );
 
         repassesGerados++;
@@ -111,7 +114,7 @@ const repassesController = {
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $4 AND empresa_id = $5
          RETURNING *`,
-        [data_pagamento || new Date().toISOString().split('T')[0], forma_pagamento, comprovante_url, id, req.user.empresa_id]
+        [data_pagamento || dataBrasil(), forma_pagamento, comprovante_url, id, req.user.empresa_id]
       );
 
       if (result.rows.length === 0) {

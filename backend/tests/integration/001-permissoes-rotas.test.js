@@ -1,4 +1,4 @@
-// Permissões por rota (constituição II). Para cada rota autenticada, os perfis que NÃO têm a
+// Spec 001/CA-06 — permissões por rota (constituição II). Para cada rota autenticada, os perfis que NÃO têm a
 // permissão recebem 403 — o `permitir()` roda antes do controller, então nada é alterado.
 // O teste também falha se aparecer uma rota nova que não esteja nesta tabela: ao criar uma rota,
 // declare aqui a permissão dela.
@@ -61,13 +61,13 @@ const rotasDoRouter = () =>
     .filter((l) => l.route)
     .flatMap((l) => Object.keys(l.route.methods).map((m) => `${m} ${l.route.path}`));
 
-test('toda rota do router está declarada nesta tabela (ou é pública)', () => {
+test('001/CA-06: toda rota do router está declarada nesta tabela (ou é pública)', () => {
   const declaradas = new Set([...ROTAS.map(([m, p]) => `${m} ${p}`), ...PUBLICAS]);
   const faltando = rotasDoRouter().filter((r) => !declaradas.has(r));
   assert.deepEqual(faltando, [], 'declare a permissão das rotas novas em ROTAS');
 });
 
-test('toda permissão citada existe na matriz', () => {
+test('001/CA-06: toda permissão citada existe na matriz', () => {
   for (const [, , perm] of ROTAS) if (perm) assert.ok(PERMISSOES[perm], `permissão ${perm} não existe`);
 });
 
@@ -85,7 +85,7 @@ for (const [metodo, rota, perm] of ROTAS) {
   const negados = Object.keys(PERFIS).filter((role) => !PERMISSOES[perm].includes(role));
   if (negados.length === 0) continue;
 
-  test(`${metodo.toUpperCase()} ${rota} → 403 para ${negados.join(', ')}`, async () => {
+  test(`001/CA-06: ${metodo.toUpperCase()} ${rota} → 403 para ${negados.join(', ')}`, async () => {
     const url = rota.replace(/:\w+/g, '999999');
     for (const role of negados) {
       const r = await api(metodo.toUpperCase(), url, {

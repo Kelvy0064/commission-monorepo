@@ -41,11 +41,27 @@ Use estas descrições na seção "Quem usa" de cada spec.
 
 ## Fluxo
 
+Cada etapa tem um comando do Claude Code (em `.claude/commands/`):
+
+| Etapa | Comando | Sai com |
+|-------|---------|---------|
+| 1. Spec | `/spec <pedido>` (ou `/spec NNN` para revisar) | `spec.md` **aprovada** |
+| 2. Plano | `/plan NNN` | `plan.md` **aprovado** |
+| 3. Tarefas | `/tasks NNN` | `tasks.md` com todos os `CA-xx` cobertos |
+| 4. Implementação | `/implementar NNN [Txx]` | código + testes verdes + spec `implementada` |
+| 5. Pull request | (o responsável aprova e faz o merge) | deploy em produção |
+
 1. **Spec** — o pedido vira `spec.md` a partir do template. Dúvidas viram perguntas na seção
-   "Perguntas em aberto", nunca suposições. Status `rascunho` → `aprovada` com o OK do responsável.
-2. **Plano** — `plan.md`: migrations, rotas, telas, riscos, rollout. Aprovado antes do código.
-3. **Tarefas** — `tasks.md`: cada tarefa aponta os `CA-xx` que cumpre.
-4. **Implementação** — numa branch; a tarefa só fecha quando os testes dos `CA-xx` dela passam.
+   "Perguntas em aberto", nunca suposições. Se a funcionalidade muda um processo que alguém executa,
+   **essa pessoa (persona) é ouvida antes da aprovação** — no piloto (spec 005), a entrevista com a
+   responsável pelo processo substituiu 3 decisões já aprovadas. Status `rascunho` → `aprovada`
+   com o OK do responsável.
+2. **Plano** — `plan.md`: migrations, rotas, telas, riscos (inclusive caminhos que contornam a regra
+   nova), rollout. Aprovado antes do código. O plano não decide regra de negócio: volta para a spec.
+3. **Tarefas** — `tasks.md`: cada tarefa aponta os `CA-xx` que cumpre; nenhum critério sem tarefa.
+4. **Implementação** — numa branch `spec/NNN-...`; a tarefa só fecha quando os testes dos `CA-xx` dela
+   passam. Regra descoberta no meio do caminho: **para, pergunta e registra na spec** antes de seguir.
+   Telas novas podem ser vistas antes do merge numa demonstração local com dados fictícios.
 5. **Pull request** — link da spec, CI verde e aprovação do responsável antes do merge na `main`
    (o merge publica em produção).
 
@@ -67,7 +83,8 @@ Use estas descrições na seção "Quem usa" de cada spec.
 
 ## Definição de pronto
 
-- [ ] Spec atualizada com o comportamento final (status `implementada`).
+- [ ] Spec atualizada com o comportamento final (status `implementada`), inclusive as regras
+      decididas durante a implementação (nada de regra só no código ou nas notas de `tasks.md`).
 - [ ] Todos os `CA-xx` com teste automatizado passando.
 - [ ] CI verde (`backend: npm test`, `frontend: npm test` e `npm run build`).
 - [ ] `CLAUDE.md` atualizado se mudou contexto, deploy ou armadilha conhecida.

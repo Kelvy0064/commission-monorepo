@@ -57,6 +57,8 @@ regras. Em caso de conflito, vale este arquivo.
    implementação, a spec é atualizada **antes** do código.
 3. Cada critério de aceite (`CA-xx`) tem pelo menos um teste automatizado que leva o id no nome.
 4. Mudanças entram na `main` por pull request com CI verde e aprovação do responsável.
+5. Se a funcionalidade muda um processo executado por alguém, essa pessoa é ouvida antes da
+   aprovação da spec.
 
 ## VII. Convenções
 
@@ -72,3 +74,4 @@ regras. Em caso de conflito, vale este arquivo.
 | Data       | Mudança                                     |
 |------------|---------------------------------------------|
 | 2026-11-16 | Versão inicial, extraída do `CLAUDE.md`.    |
+| 2026-11-17 | VI.5: ouvir quem executa o processo antes de aprovar a spec (lição do piloto, spec 005). |

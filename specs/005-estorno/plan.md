@@ -1,7 +1,7 @@
 # 005 — Plano técnico: estorno (v2)
 
 - **Spec:** [spec.md](spec.md) — versão 2 (aprovada em 2026-11-17)
-- **Status:** aprovado em 2026-11-17
+- **Status:** aprovado em 2026-11-17 · implementado em 2026-11-17
 - **Branch:** `spec/005-estorno`
 
 ## Resumo da abordagem
@@ -76,7 +76,8 @@ Sem carga de dados (produção não tem apólices). Próxima migration livre pas
   Apólice precisa estar `ativa` (senão 400, CA-08). Transação única.
 - **Concluir** `{ valor_estornado, forma_cobranca }` — só `aguardando_conclusao`. Corretor inativo →
   `assumido_pela_corretora = true`, sem saldo. Repasse da parcela 1 `pago` → saldo com o **valor
-  efetivamente pago** (valor_repasse − desconto já aplicado nele).
+  integral do repasse** (`valor_repasse`): se parte dele foi usada para quitar outro saldo, o corretor
+  se beneficiou dela do mesmo jeito (D3: 100% do que ganhou naquela apólice).
 - **Monitoramento** → `{ em_periodo: [...], cancelamentos_mes: [...] }`, **sem valores**; corretor só os
   próprios. `destaque = dias_restantes ≤ 30`.
 - **Relatório** por seguradora na competência: `a_receber` (comissões previstas/atrasadas),

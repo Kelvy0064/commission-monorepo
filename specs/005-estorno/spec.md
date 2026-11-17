@@ -1,6 +1,6 @@
 # 005 — Estorno: monitoramento, cancelamento e saldos
 
-- **Status:** aprovada (versão 2, aprovada em 2026-11-17). A versão 1 foi aprovada em 2026-11-16;
+- **Status:** implementada (versão 2, aprovada e implementada em 2026-11-17). A versão 1 foi aprovada em 2026-11-16;
   a v2 incorpora o processo descrito pela responsável pelo estorno manual (persona Carla, pós-venda/
   financeiro) e substitui as decisões marcadas na tabela de Decisões.
 - **Rigor:** completa (dinheiro)

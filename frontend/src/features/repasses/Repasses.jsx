@@ -6,6 +6,7 @@ import Button from '../../components/common/Button/Button';
 import Alert from '../../components/common/Alert/Alert';
 import Card from '../../components/common/Card/Card';
 import { useAuth } from '../../context/AuthContext';
+import SaldosCorretores from './components/SaldosCorretores';
 
 const Repasses = () => {
   const { pode } = useAuth();
@@ -37,7 +38,8 @@ const Repasses = () => {
   };
 
   const repassesPendentes = repasses.filter(r => r.status === 'pendente');
-  const totalPendente = repassesPendentes.reduce((sum, r) => sum + parseFloat(r.valor_repasse || 0), 0);
+  // Valor a pagar = repasse menos o desconto de saldo de estornos (spec 005)
+  const totalPendente = repassesPendentes.reduce((sum, r) => sum + parseFloat(r.valor_a_pagar ?? r.valor_repasse ?? 0), 0);
 
   return (
     <div>
@@ -86,6 +88,8 @@ const Repasses = () => {
       <Card>
         <RepassesTable repasses={repasses} loading={loading} onMarcarPago={podeEditar ? handleMarcarPago : null} />
       </Card>
+
+      {pode('estornos.ver') && <SaldosCorretores atualizar={repasses} />}
     </div>
   );
 };

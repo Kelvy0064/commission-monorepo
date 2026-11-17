@@ -34,7 +34,7 @@ const RepassesTable = ({ repasses, loading, onMarcarPago }) => {
           <tr>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Corretor</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Competência</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Valor</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">A pagar</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Previsão</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ações</th>
@@ -46,7 +46,12 @@ const RepassesTable = ({ repasses, loading, onMarcarPago }) => {
               <td className="px-4 py-3 text-sm font-medium text-gray-800">{repasse.corretor_nome}</td>
               <td className="px-4 py-3 text-sm text-gray-600">{repasse.competencia}</td>
               <td className="px-4 py-3 text-sm text-green-600 font-semibold">
-                {formatCurrency(repasse.valor_repasse)}
+                {formatCurrency(repasse.valor_a_pagar ?? repasse.valor_repasse)}
+                {Number(repasse.valor_desconto_saldo) > 0 && (
+                  <div className="text-xs font-normal text-orange-700">
+                    {formatCurrency(repasse.valor_repasse)} − {formatCurrency(repasse.valor_desconto_saldo)} de saldo (estorno)
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3 text-sm text-gray-600">{formatDate(repasse.data_previsao_pagamento)}</td>
               <td className="px-4 py-3 text-sm">{getStatusBadge(repasse.status)}</td>

@@ -12,12 +12,14 @@ import { useAuth } from '../../context/AuthContext';
 import { corretoresService } from '../../api/services/corretores.service';
 import { seguradorasService } from '../../api/services/seguradoras.service';
 import { clientesService } from '../../api/services/clientes.service';
+import CancelamentoModal from '../estornos/components/CancelamentoModal';
 
 const Apolices = () => {
   const { pode } = useAuth();
   const { apolices, loading, error, createApolice, updateApolice, deleteApolice, refresh } = useApolices();
   const { isOpen, modalData, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState(null);
+  const [cancelando, setCancelando] = useState(null);
   
   // ADICIONAR ESTES ESTADOS
   const [corretores, setCorretores] = useState([]);
@@ -123,6 +125,7 @@ const Apolices = () => {
           loading={loading}
           onEdit={pode('apolices.editar') ? openModal : null}
           onDelete={pode('apolices.excluir') ? handleDelete : null}
+          onCancelar={pode('estornos.avisar') ? setCancelando : null}
           verComissao={pode('apolices.ver_comissao')}
         />
       </Card>
@@ -140,6 +143,8 @@ const Apolices = () => {
           modoOperacional={!pode('apolices.ver_comissao')}
         />
       </Modal>
+
+      <CancelamentoModal apolice={cancelando} onClose={() => setCancelando(null)} onDone={refresh} />
     </div>
   );
 };

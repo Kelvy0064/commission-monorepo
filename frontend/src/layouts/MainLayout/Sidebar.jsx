@@ -1,8 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Home, Users, Building2, FileText, DollarSign, ArrowRightLeft, LogOut, KanbanSquare, UserCog, Briefcase,
-} from 'lucide-react';
+  Home, Users, Building2, FileText, DollarSign, ArrowRightLeft, LogOut, KanbanSquare, UserCog, Briefcase, ShieldAlert, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PERFIS } from '../../auth/permissoes';
 
@@ -12,10 +11,12 @@ const MENU = [
   { path: '/negociacoes', icon: KanbanSquare, label: 'Negociações', permissao: 'negociacoes.ver' },
   { path: '/clientes', icon: Users, label: 'Clientes', permissao: 'clientes.ver' },
   { path: '/apolices', icon: FileText, label: 'Apólices', permissao: 'apolices.ver' },
+  { path: '/monitoramento', icon: ShieldAlert, label: 'Monitoramento', permissao: 'monitoramento.ver' },
   { path: '/corretores', icon: Briefcase, label: 'Corretores', permissao: 'corretores.ver' },
   { path: '/seguradoras', icon: Building2, label: 'Seguradoras', permissao: 'seguradoras.ver' },
   { path: '/comissoes', icon: DollarSign, label: 'Comissões', permissao: 'comissoes.ver' },
   { path: '/repasses', icon: ArrowRightLeft, label: 'Repasses', permissao: 'repasses.ver' },
+  { path: '/estornos', icon: RotateCcw, label: 'Estornos', permissao: 'estornos.ver' },
   { path: '/usuarios', icon: UserCog, label: 'Usuários', permissao: 'usuarios.gerenciar' },
 ];
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRightLeft, CheckCircle, KanbanSquare, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, CheckCircle, KanbanSquare, RefreshCw, Wallet } from 'lucide-react';
 import KPICard from './KPICard';
 import Button from '../../../components/common/Button/Button';
 import Alert from '../../../components/common/Alert/Alert';
@@ -66,6 +66,18 @@ const DashboardCorretor = () => {
           color="purple"
         />
       </div>
+
+      {Number(dados?.saldo_pendente) > 0 && (
+        <div className="mb-6 max-w-sm">
+          <KPICard
+            icon={Wallet}
+            title="Saldo pendente"
+            value={formatCurrency(dados.saldo_pendente)}
+            subtitle="de estornos — descontado dos próximos repasses"
+            color="orange"
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <Link to="/negociacoes" className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">

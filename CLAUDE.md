@@ -119,7 +119,7 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
   + `ADD`, `UPDATE ... WHERE coluna IS NULL`...). Se uma falhar, o backend não sobe.
 - Carga de dados que deve rodar **uma vez só**: registre na tabela `data_migrations` (padrão da
   `006_negociacoes_leads.sql`), senão ela se repete a cada deploy.
-- Próximo número livre: **011**.
+- Próximo número livre: **012**.
 - Admin inicial: criado no deploy a partir de `ADMIN_EMAIL`/`ADMIN_PASSWORD`, na empresa
   `ADMIN_EMPRESA_CODIGO` (padrão `NEVITTA`), se o e-mail não existir (nunca altera senha de usuário existente).
 
@@ -206,8 +206,9 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
 - `estorno_meses` e a vigência são **apenas registrados** — ainda não entram em nenhum cálculo.
 
 **Apólices, comissões e repasses** — regra central (`utils/comissaoParcela.js`)
-- Apólice usa uma tabela de comissão (`tabela_comissao_id`) **ou** percentual fixo
-  (`percentual_comissao`). Com tabela, `percentual_comissao` guarda o % da 1ª parcela (referência).
+- Apólice **sempre** usa uma tabela de comissão (`tabela_comissao_id`, obrigatória desde a spec 005 —
+  a tabela é o retorno da seguradora e traz o prazo de estorno). `percentual_comissao` guarda o % da
+  1ª parcela (referência). O tipo `fixa` no cálculo só existe para apólices antigas sem tabela.
 - Comissão tem `numero_parcela` e `tipo` (`agenciamento` | `vitalicio` | `fixa`).
   - Criar apólice gera a **parcela 1** na competência atual.
   - O job mensal (`jobs/gerarComissoesMes.js`, cron dia 1 00:00) gera a **próxima parcela** de cada
@@ -225,6 +226,23 @@ frontend/  React 18 + Vite 5 + Tailwind 3 + react-router 6 + axios + lucide-reac
   `POST /repasses/gerar` é idempotente. Repasse vence **recebimento + 2 dias**. Corrigir o recebimento
   (`PUT /comissoes/:id/recebida` de novo) atualiza o repasse **pendente**; repasse pago não muda.
 - `pagamentos_seguradora` existe no schema mas não é usada.
+
+**Estorno** (spec 005 — `specs/005-estorno/`; regras em `utils/estorno.js`)
+- Período de estorno = início da vigência + `tabelas_comissao.estorno_meses` − 1 dia. Monitoramento em
+  `GET /monitoramento-estorno` (sem valores; destaque a 30 dias; cancelamentos do mês para a daily).
+- **Cancelar só por `POST /apolices/:id/cancelamento`** (pós-venda/gestor/admin; motivo obrigatório). A
+  edição comum recusa o status `cancelada` e não reativa apólice cancelada. Cancelar cancela comissões
+  não recebidas; dentro do período abre um `estornos` (aguardando conclusão) e cancela o repasse
+  pendente da parcela 1 (parcela 1 recebida de venda estornada não gera repasse depois).
+- Etapa 2 `PUT /estornos/:id/concluir` (gestor/admin): valor + forma (`desconto_plataforma` → a
+  descontar; `pix_boleto` → a pagar) e, se o repasse da parcela 1 foi pago, cria `saldos_corretor`
+  com o valor integral do repasse (corretor desligado → corretora assume, sem saldo).
+- Ao gerar repasses, saldos pendentes do corretor são **descontados automaticamente**
+  (`repasses.valor_desconto_saldo`; a pagar = `valor_repasse − valor_desconto_saldo`), com teto de
+  acordo opcional; quitação manual em `POST /saldos-corretor/:id/quitacoes`. Histórico em
+  `saldo_movimentos`. Repasse cancelado ou recalculado para menos devolve o desconto ao saldo.
+- Relatório do financeiro: `GET /relatorios/plataforma?competencia=`. O desconto que a plataforma faz
+  no pagamento de **outra** venda não reduz o recebido dessa venda (senão o repasse de outro corretor cai).
 
 ## Convenções de código
 

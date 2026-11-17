@@ -26,7 +26,7 @@ A numeração é sequencial (`001`, `002`...) e independente da numeração das 
 | [002](002-comissao-por-parcela/spec.md) | Comissão por parcela e repasse ao corretor | implementada (retroativa, revisada em 2026-11-16) |
 | 003 | Entrada de leads (landing page, Meta) e importação | a escrever (Fase 1) |
 | [004](004-negociacoes-kanban/spec.md) | Negociações: kanban, follow-up e distribuição | rascunho (regras a escrever — Fase 1) |
-| [005](005-estorno/spec.md) | Estorno: monitoramento, cancelamento e saldos | aprovada (v2) — em implementação |
+| [005](005-estorno/spec.md) | Estorno: monitoramento, cancelamento e saldos | implementada (v2) |
 
 ## Personas (perfis do sistema)
 

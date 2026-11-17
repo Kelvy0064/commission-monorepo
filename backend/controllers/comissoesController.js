@@ -2,13 +2,14 @@ const pool = require('../config/database');
 const { escopoCorretor } = require('../utils/permissoes');
 const { valorComissao, DIAS_PARA_REPASSE } = require('../utils/comissaoParcela');
 const { competenciaBrasil, dataBrasil, somarDias, SQL_HOJE_BRASIL } = require('../utils/dataBrasil');
+const { devolverDescontos } = require('../utils/estorno');
 
 const competenciaAtual = () => competenciaBrasil();
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 // Dashboard do corretor: só os próprios números (negociações e repasses)
 const dashboardCorretor = async (empresaId, corretorId) => {
-  const [negociacoes, repasses] = await Promise.all([
+  const [negociacoes, repasses, saldo] = await Promise.all([
     pool.query(
       `SELECT COUNT(*) FILTER (WHERE status = 'em_andamento')::int AS em_andamento,
               COUNT(*) FILTER (WHERE status = 'em_andamento' AND proxima_acao_em < (now() AT TIME ZONE 'America/Sao_Paulo'))::int AS atrasadas,
@@ -18,9 +19,14 @@ const dashboardCorretor = async (empresaId, corretorId) => {
       [empresaId, corretorId]
     ),
     pool.query(
-      `SELECT COALESCE(SUM(valor_repasse) FILTER (WHERE status = 'pendente'), 0) AS pendente,
-              COALESCE(SUM(valor_repasse) FILTER (WHERE status = 'pago'), 0) AS pago
+      `SELECT COALESCE(SUM(valor_repasse - valor_desconto_saldo) FILTER (WHERE status = 'pendente'), 0) AS pendente,
+              COALESCE(SUM(valor_repasse - valor_desconto_saldo) FILTER (WHERE status = 'pago'), 0) AS pago
        FROM repasses WHERE empresa_id = $1 AND corretor_destino_id = $2`,
+      [empresaId, corretorId]
+    ),
+    pool.query(
+      `SELECT COALESCE(SUM(valor_restante), 0) AS total FROM saldos_corretor
+       WHERE empresa_id = $1 AND corretor_id = $2 AND status = 'pendente'`,
       [empresaId, corretorId]
     ),
   ]);
@@ -29,6 +35,7 @@ const dashboardCorretor = async (empresaId, corretorId) => {
     negociacoes: negociacoes.rows[0],
     repasses_pendentes: parseFloat(repasses.rows[0].pendente),
     repasses_pagos: parseFloat(repasses.rows[0].pago),
+    saldo_pendente: parseFloat(saldo.rows[0].total),
   };
 };
 
@@ -116,10 +123,13 @@ const comissoesController = {
         [comissao.id]
       );
       for (const r of pendentes.rows) {
+        const novoValor = valorComissao(comissao.valor_comissao_liquido, r.percentual_repasse);
+        // Desconto de saldo maior que o novo valor volta ao saldo (spec 005)
+        await devolverDescontos(client, { repasseId: r.id, novoMaximo: novoValor, data: dataRecebimento, usuarioId: req.user.id });
         await client.query(
           `UPDATE repasses SET valor_repasse = $1, data_previsao_pagamento = $2, updated_at = CURRENT_TIMESTAMP
            WHERE id = $3`,
-          [valorComissao(comissao.valor_comissao_liquido, r.percentual_repasse), somarDias(dataRecebimento, DIAS_PARA_REPASSE), r.id]
+          [novoValor, somarDias(dataRecebimento, DIAS_PARA_REPASSE), r.id]
         );
       }
 
@@ -154,7 +164,7 @@ const comissoesController = {
           [mesAtual, empresaId]
         ),
         pool.query(
-          `SELECT COALESCE(SUM(valor_repasse), 0) as total
+          `SELECT COALESCE(SUM(valor_repasse - valor_desconto_saldo), 0) as total
            FROM repasses WHERE status = 'pendente' AND empresa_id = $1`,
           [empresaId]
         ),

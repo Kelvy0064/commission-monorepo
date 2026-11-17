@@ -1,6 +1,7 @@
 const pool = require('../config/database');
 const { PARCELA_COM_REPASSE, DIAS_PARA_REPASSE, valorComissao } = require('../utils/comissaoParcela');
 const { dataBrasil, somarDias } = require('../utils/dataBrasil');
+const { descontarSaldos } = require('../utils/estorno');
 const { escopoCorretor } = require('../utils/permissoes');
 
 const repassesController = {
@@ -11,6 +12,7 @@ const repassesController = {
       const params = [req.user.empresa_id];
       let query = `
         SELECT r.*,
+               r.valor_repasse - r.valor_desconto_saldo AS valor_a_pagar,
                cor.nome as corretor_nome,
                c.valor_comissao_bruto,
                c.competencia
@@ -64,6 +66,11 @@ const repassesController = {
         AND NOT EXISTS (
           SELECT 1 FROM repasses r WHERE r.comissao_id = c.id
         )
+        -- Venda estornada não gera mais repasse (spec 005/D5)
+        AND NOT EXISTS (
+          SELECT 1 FROM estornos e WHERE e.apolice_id = c.apolice_id
+        )
+        ORDER BY c.data_recebimento_real, c.id
       `, [PARCELA_COM_REPASSE, req.user.empresa_id]);
 
       let repassesGerados = 0;
@@ -74,13 +81,24 @@ const repassesController = {
         // Corretor inativo continua recebendo o repasse do que vendeu (RN-21).
         const dataPrevisao = somarDias(comissao.recebido_em, DIAS_PARA_REPASSE);
 
-        await client.query(
+        const novo = await client.query(
           `INSERT INTO repasses (comissao_id, corretor_destino_id, valor_repasse, percentual_repasse,
                                  data_previsao_pagamento, status, empresa_id)
-           VALUES ($1, $2, $3, $4, $5, 'pendente', $6)`,
+           VALUES ($1, $2, $3, $4, $5, 'pendente', $6)
+           RETURNING id`,
           [comissao.id, comissao.corretor_id, valorRepasse, comissao.percentual_corretor,
            dataPrevisao, comissao.empresa_id]
         );
+
+        // Saldo pendente do corretor (estornos) é descontado deste repasse (spec 005/RN-09)
+        await descontarSaldos(client, {
+          repasseId: novo.rows[0].id,
+          corretorId: comissao.corretor_id,
+          empresaId: comissao.empresa_id,
+          valorRepasse,
+          data: dataBrasil(),
+          usuarioId: req.user.id,
+        });
 
         repassesGerados++;
       }

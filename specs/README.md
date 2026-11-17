@@ -25,8 +25,19 @@ A numeração é sequencial (`001`, `002`...) e independente da numeração das 
 | [001](001-multiempresa-perfis/spec.md) | Multiempresa, perfis de acesso e auto-cadastro | implementada (retroativa, revisada em 2026-11-16) |
 | [002](002-comissao-por-parcela/spec.md) | Comissão por parcela e repasse ao corretor | implementada (retroativa, revisada em 2026-11-16) |
 | 003 | Entrada de leads (landing page, Meta) e importação | a escrever (Fase 1) |
-| 004 | Negociações: kanban e distribuição | a escrever (Fase 1) |
+| [004](004-negociacoes-kanban/spec.md) | Negociações: kanban, follow-up e distribuição | rascunho (regras a escrever — Fase 1) |
 | [005](005-estorno/spec.md) | Estorno: monitoramento e saldo pendente do corretor | aprovada — a implementar |
+
+## Personas (perfis do sistema)
+
+Use estas descrições na seção "Quem usa" de cada spec.
+
+| Perfil        | Quem é | Acesso (resumo — matriz em `backend/utils/permissoes.js`) |
+|---------------|--------|-----------------------------------------------------------|
+| Administrador | Suporte de TI da empresa. | Tudo na própria empresa. |
+| Gestor        | COO e cargos de gestão: financeiro, gestor, coordenador. | Operação completa; gerencia só usuários Corretor e Pós-venda; só lê seguradoras e tabelas. |
+| Corretor      | Vendedores. | Só os **próprios** resultados: clientes, negociações, apólices (sem comissão), repasses e saldo. |
+| Pós-venda     | Acompanha o cliente depois da venda. **Funcionalidades próprias ainda a criar.** | Lê clientes e negociações; campos operacionais da apólice; monitoramento do período de estorno (spec 005); não vê comissões. |
 
 ## Fluxo
 

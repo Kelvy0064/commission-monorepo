@@ -25,6 +25,11 @@ de aceite (`CA-xx`) tem teste automatizado, e a entrada na `main` é por pull re
 
 ## Contexto do negócio (estudo de 15/11/2026 — números agregados, revalidar antes de usar)
 
+**Por que um sistema próprio:** a empresa está sendo montada do zero, e o responsável (Tech Lead com
+experiência em empresa global) quer uma solução **única e automatizada**, em vez de adaptar um CRM de
+mercado. Prefira automatizar o processo (distribuição, alertas, cálculos) a depender de controle manual.
+Perfis e personas: `specs/README.md`.
+
 **Quem é:** Nevitta Seguros, corretora de planos de saúde (empresa piloto do sistema). Promessa da marca:
 "O Melhor Pós-Venda do Mercado" (suporte 24/7, boletos, agendamentos, visita presencial). O site lista
 Bradesco, Amil, Alice, SulAmérica, Hapvida e MedSênior; o sistema tem MedSênior, Amil, SulAmérica, Omint

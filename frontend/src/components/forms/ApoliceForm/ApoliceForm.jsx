@@ -68,11 +68,8 @@ const ApoliceForm = ({
 
   // Previsão: parcelas da tabela (ou percentual fixo) e o repasse do corretor na 1ª parcela
   const mensalidade = Number(formData.valor_premio_mensal) || 0;
-  const previsao = tabelaEscolhida
-    ? cronograma(tabelaEscolhida, mensalidade, 2)
-    : formData.percentual_comissao !== '' && mensalidade
-      ? [{ parcela: 1, tipo: 'Fixa (todo mês)', percentual: Number(formData.percentual_comissao), valor: valorComissao(mensalidade, formData.percentual_comissao) }]
-      : [];
+  // A comissão vem sempre da tabela da seguradora (spec 005/D6)
+  const previsao = tabelaEscolhida ? cronograma(tabelaEscolhida, mensalidade, 2) : [];
   const corretor = corretores.find((c) => String(c.id) === String(formData.corretor_responsavel_id));
   const repasseCorretor =
     corretor && previsao[0] ? valorComissao(previsao[0].valor, corretor.percentual_comissao) : null;
@@ -107,9 +104,9 @@ const ApoliceForm = ({
       newErrors.valor_premio_mensal = 'Valor do prêmio é obrigatório';
     }
 
-    // Sem tabela de comissão, o percentual fixo é obrigatório
-    if (!modoOperacional && !formData.tabela_comissao_id && !validateRequired(formData.percentual_comissao)) {
-      newErrors.percentual_comissao = 'Informe o percentual ou escolha uma tabela de comissão';
+    // A tabela de comissão é o retorno da seguradora e traz o prazo de estorno (spec 005/D6)
+    if (!modoOperacional && !formData.tabela_comissao_id) {
+      newErrors.tabela_comissao_id = 'Escolha a tabela de comissão da seguradora';
     }
 
     // O vencimento do boleto define a previsão de recebimento da comissão (spec 002/RN-06)
@@ -138,7 +135,7 @@ const ApoliceForm = ({
         corretor_responsavel_id: parseInt(formData.corretor_responsavel_id),
         valor_premio_mensal: parseFloat(formData.valor_premio_mensal),
         tabela_comissao_id: formData.tabela_comissao_id ? parseInt(formData.tabela_comissao_id) : null,
-        percentual_comissao: formData.tabela_comissao_id ? null : parseFloat(formData.percentual_comissao),
+        percentual_comissao: null,
         dia_vencimento: formData.dia_vencimento === '' || formData.dia_vencimento === null 
           ? null 
           : parseInt(formData.dia_vencimento),
@@ -267,45 +264,30 @@ const ApoliceForm = ({
         </div>
 
         <div className={modoOperacional ? 'hidden' : ''}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Regra de comissão *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tabela de comissão *</label>
           <select
             value={formData.tabela_comissao_id}
             onChange={(e) => handleChange('tabela_comissao_id', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+              errors.tabela_comissao_id ? 'border-red-500' : 'border-gray-300'
+            }`}
             disabled={loading || !formData.seguradora_id}
           >
-            <option value="">Percentual fixo (todo mês)</option>
+            <option value="">{formData.seguradora_id ? 'Escolha a tabela' : 'Escolha a seguradora primeiro'}</option>
             {tabelasDisponiveis.map((t) => (
               <option key={t.id} value={t.id}>
                 Tabela: {t.nome} ({modalidadeLabel(t.modalidade)}){t.ativa ? '' : ' — inativa'}
               </option>
             ))}
           </select>
+          {errors.tabela_comissao_id && <p className="mt-1 text-sm text-red-600">{errors.tabela_comissao_id}</p>}
           {formData.seguradora_id && tabelas.length === 0 && (
-            <p className="mt-1 text-xs text-gray-500">Esta seguradora ainda não tem tabelas de comissão.</p>
+            <p className="mt-1 text-xs text-gray-500">
+              Esta seguradora ainda não tem tabelas de comissão — cadastre em Seguradoras antes de criar a apólice.
+            </p>
           )}
         </div>
       </div>
-
-      {!modoOperacional && !formData.tabela_comissao_id && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Comissão fixa (%) *</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.percentual_comissao ?? ''}
-              onChange={(e) => handleChange('percentual_comissao', e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                errors.percentual_comissao ? 'border-red-500' : 'border-gray-300'
-              }`}
-              disabled={loading}
-            />
-            {errors.percentual_comissao && <p className="mt-1 text-sm text-red-600">{errors.percentual_comissao}</p>}
-          </div>
-        </div>
-      )}
 
       {!modoOperacional && tabelaEscolhida && <p className="text-sm text-gray-700">{resumoTabela(tabelaEscolhida)}</p>}
 

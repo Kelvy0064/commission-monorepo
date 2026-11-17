@@ -103,6 +103,23 @@ const criarSeguradora = async ({ empresaId, nome = 'Seguradora Teste', diaPagame
     )
   ).rows[0];
 
+// Tabela de comissão direto no banco (a apólice sempre usa uma — spec 005/D6)
+const criarTabelaComissao = async ({
+  seguradoraId,
+  nome = 'Tabela Teste',
+  percentuais = [10],
+  vitalicio = null,
+  vitalicioMeses = null,
+  estornoMeses = null,
+} = {}) =>
+  (
+    await db.query(
+      `INSERT INTO tabelas_comissao (seguradora_id, nome, percentuais_parcelas, vitalicio_percentual, vitalicio_meses, estorno_meses)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [seguradoraId, nome, percentuais, vitalicio, vitalicioMeses, estornoMeses]
+    )
+  ).rows[0];
+
 // Competência (AAAA-MM) e data (AAAA-MM-DD) no fuso do processo (UTC nos testes, como no Railway)
 const competenciaDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
@@ -117,5 +134,6 @@ module.exports = {
   criarUsuario,
   criarCliente,
   criarSeguradora,
+  criarTabelaComissao,
   competenciaDe,
 };

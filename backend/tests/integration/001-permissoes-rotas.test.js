@@ -51,6 +51,15 @@ const ROTAS = [
   ['get', '/repasses', 'repasses.ver'],
   ['post', '/repasses/gerar', 'repasses.editar'],
   ['put', '/repasses/:id/pago', 'repasses.editar'],
+  ['post', '/apolices/:id/cancelamento', 'estornos.avisar'],
+  ['get', '/monitoramento-estorno', 'monitoramento.ver'],
+  ['get', '/estornos', 'estornos.ver'],
+  ['put', '/estornos/:id/concluir', 'estornos.editar'],
+  ['put', '/estornos/:id/liquidar', 'estornos.editar'],
+  ['get', '/saldos-corretor', 'estornos.ver'],
+  ['put', '/saldos-corretor/:id/acordo', 'estornos.editar'],
+  ['post', '/saldos-corretor/:id/quitacoes', 'estornos.editar'],
+  ['get', '/relatorios/plataforma', 'estornos.ver'],
 ];
 
 // Rotas públicas (antes do login) — não entram na checagem de 403

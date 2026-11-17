@@ -47,6 +47,13 @@ const PERMISSOES = {
   'repasses.ver': ['admin', 'gestor', 'corretor'], // corretor: só os próprios
   'repasses.editar': ['admin', 'gestor'],
 
+  // Estorno (spec 005): monitoramento do período; aviso de cancelamento (etapa 1);
+  // conclusão, saldos dos corretores e relatório do financeiro (etapa 2)
+  'monitoramento.ver': TODOS, // corretor: só os próprios; ninguém vê valores aqui
+  'estornos.avisar': ['admin', 'gestor', 'pos_venda'],
+  'estornos.ver': ['admin', 'gestor'],
+  'estornos.editar': ['admin', 'gestor'],
+
   'usuarios.gerenciar': ['admin', 'gestor'], // gestor não cria/promove/edita administradores
 };
 

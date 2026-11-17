@@ -31,19 +31,12 @@ const recalcularPendentes = async (db, apolice) => {
   }
 };
 
-// Define como a apólice comissiona: pela tabela da seguradora (tabela_comissao_id) ou por
-// percentual fixo. Com tabela, o percentual guardado na apólice é o da 1ª parcela (referência).
-// Retorna { tabela, percentualApolice } ou { error }.
+// Define como a apólice comissiona: sempre pela tabela de comissão da seguradora — a tabela é o
+// retorno da seguradora e traz também o prazo de estorno (spec 005/RN-03, D6). O percentual guardado
+// na apólice é o da 1ª parcela (referência). Retorna { tabela, percentualApolice } ou { error }.
 const resolverComissao = async (db, body, seguradoraId) => {
   const tabelaId = body.tabela_comissao_id ? Number(body.tabela_comissao_id) : null;
-
-  if (!tabelaId) {
-    const percentual = Number(body.percentual_comissao);
-    if (body.percentual_comissao === '' || body.percentual_comissao == null || !Number.isFinite(percentual) || percentual < 0 || percentual > 999.99) {
-      return { error: 'Informe o percentual de comissão ou escolha uma tabela de comissão' };
-    }
-    return { tabela: null, percentualApolice: percentual };
-  }
+  if (!tabelaId) return { error: 'Escolha a tabela de comissão da seguradora' };
 
   const result = await db.query('SELECT * FROM tabelas_comissao WHERE id = $1', [tabelaId]);
   const tabela = result.rows[0];
@@ -71,6 +64,20 @@ const validarVinculos = async (db, body, empresaId) => {
 const CAMPOS_COMISSAO = ['percentual_comissao', 'tabela_comissao_id', 'tabela_comissao_nome'];
 const semComissao = (apolice) =>
   Object.fromEntries(Object.entries(apolice).filter(([campo]) => !CAMPOS_COMISSAO.includes(campo)));
+
+// Cancelar só pelo fluxo próprio (spec 005/CA-18): ele registra motivo, estorno e saldos.
+// Apólice cancelada não volta a ativa pela edição. Retorna mensagem de erro ou null.
+const STATUS_DE_EDICAO = ['ativa', 'suspensa'];
+const erroDeStatus = (atual, novo) => {
+  if (novo === undefined || novo === null || novo === '') return null;
+  if (atual === 'cancelada') return novo === 'cancelada' ? null : 'Apólice cancelada não pode ser reativada';
+  if (!STATUS_DE_EDICAO.includes(novo)) {
+    return novo === 'cancelada'
+      ? 'Para cancelar a apólice, use "Registrar cancelamento" (motivo e estorno ficam registrados)'
+      : 'Status inválido';
+  }
+  return null;
+};
 
 // Campos que o pós-venda pode alterar (operacionais, sem impacto em comissão)
 const CAMPOS_POS_VENDA = ['numero_apolice', 'status', 'data_inicio_vigencia', 'data_fim_vigencia', 'dia_vencimento', 'observacoes'];
@@ -136,6 +143,9 @@ const apolicesController = {
       const empresaId = req.user.empresa_id;
 
       // Validações antes de gravar qualquer coisa
+      const erroStatus = erroDeStatus(null, status);
+      if (erroStatus) return res.status(400).json({ error: erroStatus });
+
       const vinculos = await validarVinculos(client, req.body, empresaId);
       if (vinculos.error) return res.status(400).json({ error: vinculos.error });
       // A previsão de recebimento vem do vencimento do boleto: sem ele a data sairia errada (RN-07)
@@ -201,6 +211,15 @@ const apolicesController = {
         return res.status(400).json({ error: DIA_VENCIMENTO_OBRIGATORIO });
       }
 
+      const atual = await client.query('SELECT status FROM apolices WHERE id = $1 AND empresa_id = $2', [
+        id,
+        req.user.empresa_id,
+      ]);
+      if (atual.rows.length === 0) return res.status(404).json({ error: 'Apólice não encontrada' });
+      const statusAtual = atual.rows[0].status;
+      const erroStatus = erroDeStatus(statusAtual, req.body.status);
+      if (erroStatus) return res.status(400).json({ error: erroStatus });
+
       if (req.user.role === 'pos_venda') {
         const campos = CAMPOS_POS_VENDA.filter((c) => req.body[c] !== undefined);
         if (campos.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
@@ -245,7 +264,7 @@ const apolicesController = {
          RETURNING *`,
         [cliente_id, seguradora_id, corretor_responsavel_id, numero_apolice,
          tipo_seguro, valor_premio_mensal, resolvida.percentualApolice, resolvida.tabela?.id ?? null,
-         data_inicio_vigencia, data_fim_vigencia, dia_vencimento, status, observacoes, id, req.user.empresa_id]
+         data_inicio_vigencia, data_fim_vigencia, dia_vencimento, status || statusAtual, observacoes, id, req.user.empresa_id]
       );
 
       if (result.rows.length === 0) {

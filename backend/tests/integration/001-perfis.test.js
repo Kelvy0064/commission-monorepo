@@ -11,6 +11,7 @@ const {
   criarCorretor,
   criarCliente,
   criarSeguradora,
+  criarTabelaComissao,
 } = require('../helpers/contexto');
 
 let admin;
@@ -43,6 +44,7 @@ before(async () => {
   }
 
   const seguradora = await criarSeguradora({ empresaId: empresa.id });
+  const tabela = await criarTabelaComissao({ seguradoraId: seguradora.id, percentuais: [10] });
   const r = await api('POST', '/apolices', {
     token: admin.token,
     body: {
@@ -52,7 +54,7 @@ before(async () => {
       numero_apolice: unico('AP'),
       tipo_seguro: 'saude',
       valor_premio_mensal: 1000,
-      percentual_comissao: 10,
+      tabela_comissao_id: tabela.id,
       dia_vencimento: 10,
       data_inicio_vigencia: '2026-01-01',
     },

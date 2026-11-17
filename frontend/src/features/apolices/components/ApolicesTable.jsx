@@ -1,10 +1,12 @@
 import React from 'react';
 import { formatCurrency } from '../../../utils/formatters';
 import Spinner from '../../../components/common/Spinner/Spinner';
+import { motivoLabel } from '../../estornos/constants';
 
-// onEdit/onDelete nulos escondem as ações; verComissao=false esconde a coluna de comissão
-const ApolicesTable = ({ apolices, loading, onEdit, onDelete, verComissao = true }) => {
-  const temAcoes = Boolean(onEdit || onDelete);
+// onEdit/onDelete/onCancelar nulos escondem as ações; verComissao=false esconde a coluna de comissão.
+// Cancelar só pelo fluxo de estorno (spec 005): registra motivo e efeitos.
+const ApolicesTable = ({ apolices, loading, onEdit, onDelete, onCancelar, verComissao = true }) => {
+  const temAcoes = Boolean(onEdit || onDelete || onCancelar);
   if (loading) return <Spinner />;
 
   if (apolices.length === 0) {
@@ -61,7 +63,14 @@ const ApolicesTable = ({ apolices, loading, onEdit, onDelete, verComissao = true
                   {apolice.tabela_comissao_nome ? `Tabela: ${apolice.tabela_comissao_nome}` : `${apolice.percentual_comissao}%`}
                 </td>
               )}
-              <td className="px-4 py-3 text-sm">{getStatusBadge(apolice.status)}</td>
+              <td className="px-4 py-3 text-sm">
+                {getStatusBadge(apolice.status)}
+                {apolice.status === 'cancelada' && apolice.motivo_cancelamento && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {motivoLabel(apolice.motivo_cancelamento, apolice.motivo_cancelamento_descricao)}
+                  </p>
+                )}
+              </td>
               {temAcoes && (
                 <td className="px-4 py-3 text-sm">
                   {onEdit && (
@@ -70,6 +79,14 @@ const ApolicesTable = ({ apolices, loading, onEdit, onDelete, verComissao = true
                       className="text-blue-600 hover:text-blue-800 mr-3 font-medium"
                     >
                       Editar
+                    </button>
+                  )}
+                  {onCancelar && apolice.status === 'ativa' && (
+                    <button
+                      onClick={() => onCancelar(apolice)}
+                      className="text-orange-600 hover:text-orange-800 mr-3 font-medium"
+                    >
+                      Cancelar
                     </button>
                   )}
                   {onDelete && (

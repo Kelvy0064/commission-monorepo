@@ -13,6 +13,8 @@ const Apolices = lazy(() => import('../features/apolices/Apolices'));
 const Comissoes = lazy(() => import('../features/comissoes/Comissoes'));
 const Repasses = lazy(() => import('../features/repasses/Repasses'));
 const Usuarios = lazy(() => import('../features/usuarios/Usuarios'));
+const Monitoramento = lazy(() => import('../features/monitoramento/Monitoramento'));
+const Estornos = lazy(() => import('../features/estornos/Estornos'));
 
 // Páginas e a permissão que cada uma exige (ordem = prioridade da página inicial)
 export const PAGINAS = [
@@ -20,10 +22,12 @@ export const PAGINAS = [
   { path: '/negociacoes', element: <Negociacoes />, permissao: 'negociacoes.ver' },
   { path: '/clientes', element: <Clientes />, permissao: 'clientes.ver' },
   { path: '/apolices', element: <Apolices />, permissao: 'apolices.ver' },
+  { path: '/monitoramento', element: <Monitoramento />, permissao: 'monitoramento.ver' },
   { path: '/corretores', element: <Corretores />, permissao: 'corretores.ver' },
   { path: '/seguradoras', element: <Seguradoras />, permissao: 'seguradoras.ver' },
   { path: '/comissoes', element: <Comissoes />, permissao: 'comissoes.ver' },
   { path: '/repasses', element: <Repasses />, permissao: 'repasses.ver' },
+  { path: '/estornos', element: <Estornos />, permissao: 'estornos.ver' },
   { path: '/usuarios', element: <Usuarios />, permissao: 'usuarios.gerenciar' },
 ];
 

@@ -13,6 +13,7 @@ const {
   criarCorretor,
   criarCliente,
   criarSeguradora,
+  criarTabelaComissao,
 } = require('../helpers/contexto');
 const gerarComissoesMes = require('../../jobs/gerarComissoesMes');
 const { competenciaBrasil } = require('../../utils/dataBrasil');
@@ -36,6 +37,7 @@ let cliente;
 let seguradora;
 let T;
 let tabelaCurta; // {100%} sem vitalício
+let tabelaContinua; // 10% todo mês (agenciamento 10% + vitalício 10% sem prazo)
 
 const comissoesDa = async (apoliceId) =>
   (
@@ -99,11 +101,12 @@ before(async () => {
     vitalicio_meses: 12,
   });
   tabelaCurta = await criarTabela(seguradora.id, { nome: 'Só 1ª parcela', percentuais_parcelas: [100] });
+  tabelaContinua = await criarTabela(seguradora.id, { nome: 'Contínua', percentuais_parcelas: [10], vitalicio_percentual: 10 });
 });
 
 test('002/CA-07: apólice sem dia de vencimento do boleto → 400 e nada é gravado', async () => {
   for (const dia of [undefined, '', 0, 32]) {
-    const corpo = corpoApolice({ percentual_comissao: 10, dia_vencimento: dia });
+    const corpo = corpoApolice({ tabela_comissao_id: tabelaContinua.id, dia_vencimento: dia });
     const r = await api('POST', '/apolices', { token: gestor.token, body: corpo });
     assert.equal(r.status, 400, `dia_vencimento=${dia}`);
     assert.equal((await db.query('SELECT 1 FROM apolices WHERE numero_apolice = $1', [corpo.numero_apolice])).rows.length, 0);
@@ -112,7 +115,8 @@ test('002/CA-07: apólice sem dia de vencimento do boleto → 400 e nada é grav
 
 test('002/CA-07: seguradora com dia de pagamento e prazo "a confirmar" não bloqueia mais a apólice', async () => {
   const incompleta = await criarSeguradora({ empresaId: empresa.id, diaPagamento: null, prazoRepasse: null });
-  await criarApolice({ seguradora_id: incompleta.id, percentual_comissao: 10 });
+  const tabelaDaIncompleta = await criarTabela(incompleta.id, { nome: 'Da incompleta', percentuais_parcelas: [10] });
+  await criarApolice({ seguradora_id: incompleta.id, tabela_comissao_id: tabelaDaIncompleta.id });
 });
 
 test('002/CA-08: tabela de outra seguradora → 400', async () => {
@@ -144,7 +148,7 @@ test('002/CA-09: apólice com a tabela T gera a parcela 1 prevista para o vencim
 
 test('002/CA-10, CA-11, CA-12: job do mês seguinte gera a próxima parcela, sem duplicar', async () => {
   apoliceCurta = await criarApolice({ tabela_comissao_id: tabelaCurta.id });
-  apoliceSemVencimento = await criarApolice({ percentual_comissao: 10 });
+  apoliceSemVencimento = await criarApolice({ tabela_comissao_id: tabelaContinua.id });
   await db.query('UPDATE apolices SET dia_vencimento = NULL WHERE id = $1', [apoliceSemVencimento.id]);
 
   await gerarComissoesMes(proximoMes);
@@ -169,7 +173,7 @@ test('002/CA-10, CA-11, CA-12: job do mês seguinte gera a próxima parcela, sem
 });
 
 test('002/CA-22: job disparado às 23h do último dia do mês (Brasília) usa a competência desse mês', async () => {
-  const nova = await criarApolice({ percentual_comissao: 10 });
+  const nova = await criarApolice({ tabela_comissao_id: tabelaContinua.id });
   // 02h UTC do dia 1 do mês M+2 = 23h do último dia do mês M+1 em Brasília
   const fimDoMesSeguinte = new Date(Date.UTC(anoAtual, numMesAtual + 1, 1, 2));
   await gerarComissoesMes(fimDoMesSeguinte);
@@ -280,13 +284,14 @@ test('002/CA-17: gerar repasses de uma empresa não gera os de outra', async () 
   const cadB = await criarCorretor({ empresaId: outra.id });
   const clienteB = await criarCliente({ empresaId: outra.id });
   const segB = await criarSeguradora({ empresaId: outra.id });
+  const tabelaB = await criarTabelaComissao({ seguradoraId: segB.id, percentuais: [100] });
   const apB = await criarApolice(
     {
       cliente_id: clienteB.id,
       seguradora_id: segB.id,
       corretor_responsavel_id: cadB.id,
       valor_premio_mensal: 500,
-      percentual_comissao: 100,
+      tabela_comissao_id: tabelaB.id,
     },
     adminB.token
   );

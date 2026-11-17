@@ -13,6 +13,7 @@ const authController = require('../controllers/authController');
 const negociacoesController = require('../controllers/negociacoesController');
 const tabelasComissaoController = require('../controllers/tabelasComissaoController');
 const usuariosController = require('../controllers/usuariosController');
+const estornosController = require('../controllers/estornosController');
 const { loginLimiter, leadLimiter, registroLimiter } = require('../middleware/rateLimits');
 
 // ---------- Rotas públicas ----------
@@ -54,6 +55,8 @@ router.get('/apolices', permitir('apolices.ver'), apolicesController.index);
 router.post('/apolices', permitir('apolices.criar'), apolicesController.create);
 router.put('/apolices/:id', permitir('apolices.editar'), apolicesController.update);
 router.delete('/apolices/:id', permitir('apolices.excluir'), apolicesController.delete);
+// Cancelar só por aqui (etapa 1 do estorno — spec 005); a edição comum recusa o status cancelada
+router.post('/apolices/:id/cancelamento', permitir('estornos.avisar'), estornosController.avisarCancelamento);
 
 // Comissões e dashboard
 router.get('/comissoes', permitir('comissoes.ver'), comissoesController.index);
@@ -91,5 +94,15 @@ router.delete('/negociacoes/:id', permitir('negociacoes.excluir'), negociacoesCo
 router.get('/repasses', permitir('repasses.ver'), repassesController.index);
 router.post('/repasses/gerar', permitir('repasses.editar'), repassesController.gerarRepasses);
 router.put('/repasses/:id/pago', permitir('repasses.editar'), repassesController.marcarPago);
+
+// Estorno (spec 005): monitoramento, conclusão, dívida com a plataforma, saldos e relatório
+router.get('/monitoramento-estorno', permitir('monitoramento.ver'), estornosController.monitoramento);
+router.get('/estornos', permitir('estornos.ver'), estornosController.index);
+router.put('/estornos/:id/concluir', permitir('estornos.editar'), estornosController.concluir);
+router.put('/estornos/:id/liquidar', permitir('estornos.editar'), estornosController.liquidar);
+router.get('/saldos-corretor', permitir('estornos.ver'), estornosController.saldos);
+router.put('/saldos-corretor/:id/acordo', permitir('estornos.editar'), estornosController.acordo);
+router.post('/saldos-corretor/:id/quitacoes', permitir('estornos.editar'), estornosController.quitar);
+router.get('/relatorios/plataforma', permitir('estornos.ver'), estornosController.relatorioPlataforma);
 
 module.exports = router;

@@ -45,6 +45,11 @@ export const PERMISSOES = {
   'repasses.ver': ['admin', 'gestor', 'corretor'],
   'repasses.editar': ['admin', 'gestor'],
 
+  'monitoramento.ver': TODOS,
+  'estornos.avisar': ['admin', 'gestor', 'pos_venda'],
+  'estornos.ver': ['admin', 'gestor'],
+  'estornos.editar': ['admin', 'gestor'],
+
   'usuarios.gerenciar': ['admin', 'gestor'],
 };
 

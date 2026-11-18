@@ -8,6 +8,8 @@ aos corretores. Tudo em português (pt-BR): código de domínio, mensagens, UI e
 [`specs/constitution.md`](specs/constitution.md) (em conflito, ela prevalece sobre este arquivo) e o
 processo em [`specs/README.md`](specs/README.md): toda mudança nasce de uma spec aprovada, cada critério
 de aceite (`CA-xx`) tem teste automatizado, e a entrada na `main` é por pull request com CI verde.
+Comandos: `/spec`, `/plan`, `/tasks`, `/implementar` (`.claude/commands/`). Trabalhe sempre numa branch
+(`spec/NNN-...` ou `sdd/...`), nunca direto na `main`.
 
 ## Como trabalhar com o usuário
 
